@@ -943,8 +943,8 @@ async function saveRunToCloud(manual = false) {
     ended_reason: endedReason(),
     final_state: snapshot,
   }).select("id").single();
-  saveInFlight = false;
   if (error) {
+    saveInFlight = false;
     saveFailedRunId = runId;
     setAuthMessage(`保存本局失败：${error.message}`);
     game.addLog(`云端保存失败：${error.message}`, "cloud_save", { status: "run_error", error: error.message });
@@ -971,6 +971,7 @@ async function saveRunToCloud(manual = false) {
   }
   savedRunId = runId;
   saveFailedRunId = null;
+  saveInFlight = false;
   setAuthMessage("本局结果已保存到云端。");
   game.addLog("本局结果已保存到云端胜利榜。", "cloud_save", { status: "success", run_id: runCloudId });
   await loadLeaderboard();
