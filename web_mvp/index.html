@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>杭州浮生记 Web MVP</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar card">
+        <div>
+          <h1>杭州浮生记 Web MVP</h1>
+          <p id="dayText">杭州浮生(0/45天)</p>
+        </div>
+        <div class="top-actions">
+          <div id="onlineStatus" class="online-status" title="当前在线玩家">
+            <div id="onlineAvatars" class="online-avatars"></div>
+            <span id="onlineCountText">在线 0</span>
+          </div>
+          <div class="score">总分 <span id="scoreText">0</span></div>
+          <button id="newGameBtnTop">新游戏</button>
+          <button id="rankBtnTop" class="icon-btn" title="胜利榜">胜利榜</button>
+          <button id="accountBtnTop" class="avatar-btn" title="账号">
+            <span id="accountAvatar" class="account-avatar avatar-fallback">人</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="headline-grid">
+        <article class="card stat-card">
+          <p class="kicker">CASH ON HAND</p>
+          <h3 id="cashHeadline">0</h3>
+          <p class="sub">手头现金</p>
+        </article>
+        <article class="card stat-card">
+          <p class="kicker">NET WORTH</p>
+          <h3 id="netWorth">0</h3>
+          <p class="sub">净资产（现金+存款-欠债）</p>
+        </article>
+      </section>
+
+      <section class="trade-grid">
+        <div class="card panel">
+          <div class="panel-head">
+            <h2>黑市</h2>
+            <button id="rumorBtn">买行情（咖啡30）</button>
+          </div>
+          <p class="panel-note">绿色高亮 = 你已持有该商品</p>
+          <table id="marketTable">
+            <thead>
+              <tr><th>商品</th><th>黑市价格</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="card panel middle">
+          <label>买入数量 <input id="buyCount" type="number" min="1" value="1" /></label>
+          <button id="buyBtn">==> 买入</button>
+          <hr />
+          <label>卖出数量 <input id="sellCount" type="number" min="1" value="1" /></label>
+          <button id="sellBtn"><== 卖出</button>
+        </div>
+
+        <div class="card panel">
+          <h2>你的出租屋</h2>
+          <table id="invTable">
+            <thead>
+              <tr><th>商品</th><th>买进价格</th><th>数量</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="bottom-grid">
+        <div class="card panel">
+          <h2>你的状态</h2>
+          <div class="stats">
+            <div><span>现金</span><strong id="cash"></strong></div>
+            <div><span>存款</span><strong id="bank"></strong></div>
+            <div><span>欠债</span><strong id="debt"></strong></div>
+            <div><span>健康</span><strong id="health"></strong></div>
+            <div><span>名声</span><strong id="fame"></strong></div>
+            <div><span>物品</span><strong id="items"></strong></div>
+          </div>
+          <div class="ops">
+            <section class="ops-group">
+              <h3>资金流</h3>
+              <div class="ops-row">
+                <label>银行金额 <input id="bankAmount" type="number" min="0" value="1000" /></label>
+                <button id="depositBtn">存款</button>
+                <button id="withdrawBtn">取款</button>
+              </div>
+              <div class="ops-row repay-row">
+                <label>还债金额 <input id="repayAmount" type="number" min="0" value="1000" /></label>
+                <button id="repaySmartBtn">还债（智能）</button>
+              </div>
+            </section>
+            <section class="ops-group">
+              <h3>健康与仓位</h3>
+              <div class="ops-row">
+                <label>治疗点数 <input id="curePoints" type="number" min="1" value="1" /></label>
+                <button id="cureBtn">医院治疗</button>
+                <button id="rentBtn">租房中介</button>
+              </div>
+              <div class="ops-row">
+                <label>消灾预算 <input id="blessAmount" type="number" min="500" value="3000" /></label>
+                <button id="charityBtn">慈善捐款</button>
+                <button id="wellnessBtn">修养疗程</button>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="card panel">
+          <h2 id="mapTitle">杭州市全地点示意图（点击站点移动一天）</h2>
+          <div class="map-frame">
+            <div id="mapButtons" class="map-grid city-grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card panel">
+        <h2>事件日志</h2>
+        <p class="panel-note">包含成交价与单笔盈亏记录</p>
+        <div id="logs" class="logs"></div>
+      </section>
+
+    </div>
+
+    <div id="eventModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="eventTitle">
+      <div class="modal-card">
+        <h3 id="eventTitle">市场异动</h3>
+        <div id="eventBody" class="modal-body"></div>
+        <button id="eventOkBtn">知道了</button>
+      </div>
+    </div>
+
+    <div id="accountModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
+      <div class="modal-card account-card">
+        <div class="modal-head">
+          <h3 id="accountTitle">账号</h3>
+          <button id="accountCloseBtn" class="small-btn" title="关闭">关闭</button>
+        </div>
+        <p id="cloudStatusText" class="panel-note">正在连接云端...</p>
+
+        <div id="authPanel" class="account-section">
+          <label>邮箱 <input id="accountEmail" type="email" autocomplete="email" placeholder="you@example.com" /></label>
+          <label>密码 <input id="accountPassword" type="password" autocomplete="current-password" placeholder="至少 6 位" /></label>
+          <label>昵称 <input id="accountNickname" type="text" maxlength="24" placeholder="排行榜显示名" /></label>
+          <div class="account-actions">
+            <button id="emailLoginBtn">邮箱登录</button>
+            <button id="emailSignupBtn">邮箱注册</button>
+          </div>
+          <div class="account-actions">
+            <button id="googleLoginBtn" class="oauth-google">
+              <span class="google-mark" aria-hidden="true">
+                <span class="g g-blue"></span><span class="g g-red"></span><span class="g g-yellow"></span><span class="g g-green"></span>
+              </span>
+              <span>Google 登录</span>
+            </button>
+            <button id="appleLoginBtn" disabled title="正在开发中">Apple（开发中）</button>
+          </div>
+        </div>
+
+        <div id="userPanel" class="account-section hidden">
+          <div class="user-row">
+            <span>当前账号</span>
+            <strong id="accountUserText">未登录</strong>
+          </div>
+          <label>排行榜昵称 <input id="profileNameInput" type="text" maxlength="24" /></label>
+          <div class="account-actions">
+            <button id="saveNickBtn">保存昵称</button>
+            <button id="retrySaveBtn">保存本局</button>
+            <button id="signOutBtn">退出登录</button>
+          </div>
+        </div>
+
+        <p id="authMessage" class="auth-message"></p>
+      </div>
+    </div>
+
+    <div id="rankModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="rankTitle">
+      <div class="modal-card leaderboard-card">
+        <div class="modal-head">
+          <h3 id="rankTitle">全服胜利榜</h3>
+          <button id="rankCloseBtn" class="small-btn" title="关闭">关闭</button>
+        </div>
+        <p id="leaderboardUpdated" class="panel-note">读取中...</p>
+        <ol id="leaderboardList" class="leaderboard-list"></ol>
+        <button id="refreshLeaderboardBtn">刷新榜单</button>
+      </div>
+    </div>
+
+    <div id="startModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="startTitle">
+      <div class="modal-card summary-card">
+        <h3 id="startTitle">开局提示</h3>
+        <div class="modal-body">
+          <p>你只有 <strong>45 天</strong>，每移动一次就会消耗 1 天。</p>
+          <p>你当前背负 <strong>¥6,000 欠债</strong>，并且每天会累加利息。</p>
+          <p>目标：在 45 天内通过倒买倒卖实现翻盘。</p>
+        </div>
+        <button id="startConfirmBtn">明白了，开始闯荡</button>
+      </div>
+    </div>
+
+    <div id="endModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="endTitle">
+      <div class="modal-card summary-card">
+        <h3 id="endTitle">本局结算</h3>
+        <div id="endSummaryBody" class="modal-body"></div>
+        <div class="modal-actions">
+          <button id="endSaveBtn">写入积分榜</button>
+          <button id="endSkipBtn" class="ghost-btn">本局仅本地保存</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./config.js"></script>
+    <script src="./main.js"></script>
+  </body>
+  </html>
