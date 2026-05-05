@@ -572,6 +572,11 @@ button:disabled {
   border-radius: 8px;
   background: #efeff3;
 }
+.leaderboard-list li.just-saved {
+  border-color: #8db9e9;
+  background: linear-gradient(180deg, #eff6ff 0%, #e8f1ff 100%);
+  box-shadow: 0 0 0 1px rgba(116, 157, 216, 0.2) inset;
+}
 
 .leaderboard-list strong {
   overflow: hidden;

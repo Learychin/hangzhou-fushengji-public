@@ -19,45 +19,48 @@
     </header>
 
     <main id="adminMain" class="hidden">
-      <section class="admin-subnav">
-        <button id="tabOpsBtn" class="tab-btn active">运营后台</button>
-        <button id="tabPlatformBtn" class="tab-btn">平台总览</button>
+      <section id="platformPage" class="panel">
+        <div class="panel-head">
+          <h2>平台协同总览</h2>
+          <span>Web / 小程序 / 云端统一视图</span>
+        </div>
+        <div id="platformFlow" class="platform-flow"></div>
+        <div id="platformCards" class="platform-grid"></div>
       </section>
 
-      <section id="opsPage">
-        <section id="overview" class="metric-grid"></section>
+      <section id="overview" class="metric-grid"></section>
 
-        <section class="panel">
-          <div class="panel-head">
-            <h2>用户</h2>
-            <span id="usersHint"></span>
-          </div>
-          <div class="table-wrap">
-            <table id="usersTable">
-              <thead>
-                <tr>
-                  <th>邮箱</th><th>昵称</th><th>来源</th><th>注册</th><th>最近登录</th><th>局数</th><th>最高分</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>用户</h2>
+          <span id="usersHint"></span>
+        </div>
+        <div class="table-wrap">
+          <table id="usersTable">
+            <thead>
+              <tr>
+                <th>邮箱</th><th>昵称</th><th>来源</th><th>注册</th><th>最近登录</th><th>局数</th><th>最高分</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
 
       <section class="panel">
         <div class="panel-head">
           <h2>对局</h2>
           <span id="runsHint"></span>
-          </div>
-          <div class="table-wrap">
-            <table id="runsTable">
-              <thead>
-                <tr>
-                  <th>时间</th><th>玩家</th><th>分数</th><th>现金</th><th>债务</th><th>天数</th><th>原因</th><th>事件</th><th>操作</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
+        </div>
+        <div class="table-wrap">
+          <table id="runsTable">
+            <thead>
+              <tr>
+                <th>时间</th><th>玩家</th><th>分数</th><th>现金</th><th>债务</th><th>天数</th><th>原因</th><th>事件</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </div>
       </section>
 
@@ -81,20 +84,10 @@
       <section class="panel">
         <div class="panel-head">
           <h2>事件流</h2>
-            <span id="eventsHint">请先选择一局</span>
-          </div>
-          <p id="eventsRunMeta" class="panel-note event-run-meta">当前未选择对局</p>
-          <div id="eventsList" class="events-list"></div>
-        </section>
-      </section>
-
-      <section id="platformPage" class="panel hidden">
-        <div class="panel-head">
-          <h2>平台协同总览</h2>
-          <span>Web / 小程序 / 云端统一视图</span>
+          <span id="eventsHint">请先选择一局</span>
         </div>
-        <div id="platformFlow" class="platform-flow"></div>
-        <div id="platformCards" class="platform-grid"></div>
+        <p id="eventsRunMeta" class="panel-note event-run-meta">当前未选择对局</p>
+        <div id="eventsList" class="events-list"></div>
       </section>
     </main>
 

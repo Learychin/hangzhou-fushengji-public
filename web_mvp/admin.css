@@ -52,18 +52,6 @@ main {
   display: grid;
   gap: 14px;
 }
-.admin-subnav {
-  display: flex;
-  gap: 8px;
-}
-.tab-btn {
-  border: 1px solid #c7cfdf;
-  background: #eef2f9;
-}
-.tab-btn.active {
-  background: #dde8ff;
-  border-color: #8da9dc;
-}
 .hidden {
   display: none;
 }
@@ -89,10 +77,6 @@ main {
   margin-top: 12px;
   display: flex;
   gap: 8px;
-}
-#opsPage {
-  display: grid;
-  gap: 14px;
 }
 .metric-grid {
   display: grid;

@@ -185,13 +185,6 @@ async function loadEventsForSelectedRun() {
     q("eventsList").innerHTML = `<div class="empty">${esc(error.message || "加载事件失败")}</div>`;
   }
 }
-function setActiveTab(name) {
-  const isOps = name === "ops";
-  q("opsPage").classList.toggle("hidden", !isOps);
-  q("platformPage").classList.toggle("hidden", isOps);
-  q("tabOpsBtn").classList.toggle("active", isOps);
-  q("tabPlatformBtn").classList.toggle("active", !isOps);
-}
 function serviceLogo(key) {
   if (key === "github") {
     return `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .6a12 12 0 0 0-3.79 23.4c.6.1.82-.26.82-.58v-2.04c-3.34.73-4.04-1.42-4.04-1.42-.55-1.4-1.34-1.77-1.34-1.77-1.1-.74.08-.72.08-.72 1.22.09 1.86 1.25 1.86 1.25 1.08 1.85 2.84 1.32 3.53 1 .1-.8.42-1.32.76-1.62-2.66-.3-5.47-1.33-5.47-5.92 0-1.31.47-2.39 1.24-3.24-.12-.3-.54-1.52.12-3.17 0 0 1.02-.33 3.35 1.23a11.7 11.7 0 0 1 6.1 0c2.33-1.56 3.35-1.23 3.35-1.23.66 1.65.24 2.87.12 3.17.77.85 1.24 1.93 1.24 3.24 0 4.6-2.81 5.62-5.48 5.92.43.37.82 1.1.82 2.22v3.3c0 .32.22.68.83.58A12 12 0 0 0 12 .6Z"/></svg>`;
@@ -369,7 +362,5 @@ async function init() {
 }
 
 q("refreshBtn").addEventListener("click", () => { refresh(); });
-q("tabOpsBtn").addEventListener("click", () => setActiveTab("ops"));
-q("tabPlatformBtn").addEventListener("click", () => setActiveTab("platform"));
 q("adminRetryBtn").addEventListener("click", () => { init(); });
 init();
