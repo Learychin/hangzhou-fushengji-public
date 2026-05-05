@@ -67,6 +67,29 @@ main {
 .hidden {
   display: none;
 }
+.admin-gate {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+.admin-gate-card {
+  max-width: 560px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 16px;
+}
+.admin-gate-card h2 {
+  margin: 0 0 8px 0;
+}
+.admin-gate-card p {
+  color: var(--muted);
+}
+.admin-gate-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
 #opsPage {
   display: grid;
   gap: 14px;

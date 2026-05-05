@@ -1,6 +1,7 @@
 "use strict";
 
 const state = { client: null };
+let adminVerified = false;
 const PLATFORM_INFO = [
   {
     key: "github",
@@ -39,6 +40,21 @@ const runtimeStatus = {
 };
 
 function q(id) { return document.getElementById(id); }
+function setGate(text, allow = false) {
+  const gate = q("adminGate");
+  const main = q("adminMain");
+  const label = q("adminGateText");
+  if (label) label.textContent = text;
+  if (allow) {
+    gate?.classList.add("hidden");
+    main?.classList.remove("hidden");
+    adminVerified = true;
+  } else {
+    gate?.classList.remove("hidden");
+    main?.classList.add("hidden");
+    adminVerified = false;
+  }
+}
 function fmtDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleString("zh-CN");
@@ -70,6 +86,11 @@ async function callRpc(name, args) {
   if (error) throw error;
   if (data?.error === "forbidden") throw new Error("当前账号没有后台权限。请先用管理员 Google 账号登录游戏。");
   return data || [];
+}
+async function verifyAdmin() {
+  const data = await callRpc("admin_overview");
+  if (data?.error === "forbidden") throw new Error("当前账号没有后台权限。");
+  return true;
 }
 function renderOverview(data) {
   const items = [
@@ -267,6 +288,7 @@ function renderPlatformView() {
   `).join("");
 }
 async function refresh() {
+  if (!adminVerified) return;
   q("adminStatus").textContent = "读取中...";
   try {
     const [overview, users, runs, eventSummary, events] = await Promise.all([
@@ -288,6 +310,7 @@ async function refresh() {
   }
 }
 async function init() {
+  setGate("正在校验管理员身份...");
   renderPlatformView();
   await refreshServiceRuntime();
   renderPlatformView();
@@ -302,7 +325,15 @@ async function init() {
   });
   const { data } = await state.client.auth.getSession();
   if (!data.session) {
-    q("adminStatus").textContent = "请先在游戏页面用管理员账号登录，再打开后台。";
+    setGate("请先在游戏页登录管理员账号，再进入后台。");
+    return;
+  }
+  try {
+    await verifyAdmin();
+    setGate("验证通过。", true);
+  } catch (error) {
+    setGate(error.message || "当前账号没有后台权限。");
+    q("adminStatus").textContent = "权限验证失败";
     return;
   }
   await refresh();
@@ -311,4 +342,5 @@ async function init() {
 q("refreshBtn").addEventListener("click", () => { refresh(); });
 q("tabOpsBtn").addEventListener("click", () => setActiveTab("ops"));
 q("tabPlatformBtn").addEventListener("click", () => setActiveTab("platform"));
+q("adminRetryBtn").addEventListener("click", () => { init(); });
 init();

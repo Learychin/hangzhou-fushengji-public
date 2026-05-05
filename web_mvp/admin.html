@@ -18,7 +18,7 @@
       </div>
     </header>
 
-    <main>
+    <main id="adminMain" class="hidden">
       <section class="admin-subnav">
         <button id="tabOpsBtn" class="tab-btn active">运营后台</button>
         <button id="tabPlatformBtn" class="tab-btn">平台总览</button>
@@ -96,6 +96,17 @@
         <div id="platformCards" class="platform-grid"></div>
       </section>
     </main>
+
+    <section id="adminGate" class="admin-gate">
+      <div class="admin-gate-card">
+        <h2>后台权限验证</h2>
+        <p id="adminGateText">正在校验管理员身份...</p>
+        <div class="admin-gate-actions">
+          <a href="./">先去游戏页登录</a>
+          <button id="adminRetryBtn">重新校验</button>
+        </div>
+      </div>
+    </section>
 
     <script src="./config.js"></script>
     <script src="./admin.js"></script>
