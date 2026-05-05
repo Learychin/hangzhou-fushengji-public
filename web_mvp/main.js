@@ -489,6 +489,22 @@ class GameEngine {
     this.inv = [];
     this.totalItems = 0;
   }
+  buildFinalSettlementMarket() {
+    const existing = new Map(this.market.map((m) => [m.id, m.price]));
+    this.market = this.goods.map((g) => {
+      const fallback = g.base + this.rnd(g.span);
+      const rawPrice = existing.get(g.id) ?? fallback;
+      return {
+        id: g.id,
+        name: g.name,
+        price: Math.max(1, Math.floor(rawPrice)),
+        kind: g.kind,
+        weight: g.weight,
+      };
+    });
+    this.applyLocationSpread();
+    this.displayDrugs();
+  }
 
   oneTravelTurn(locIdx) {
     if (this.gameOver) return;
@@ -518,6 +534,7 @@ class GameEngine {
     });
     if (this.timeLeft === 1) this.addLog("最后一天，建议清仓。", "system", { hint: "final_day" });
     if (this.timeLeft <= 0) {
+      this.buildFinalSettlementMarket();
       this.autoSellAtEnd();
       this.gameOver = true;
       this.addLog(`45天结束，总分 ${this.score}`, "game_over", { reason: "completed", score: this.score });
