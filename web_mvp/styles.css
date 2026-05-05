@@ -43,6 +43,11 @@ body {
   color: #1f6b3c;
   font-weight: 600;
 }
+.save-banner.error {
+  border-color: #d39a9a;
+  background: #fff0f0;
+  color: #8b2e2e;
+}
 .save-banner.hidden {
   display: none;
 }

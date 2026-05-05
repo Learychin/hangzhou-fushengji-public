@@ -741,15 +741,28 @@ function setCloudStatus(msg) {
   const el = q("cloudStatusText");
   if (el) el.textContent = msg;
 }
-function showSaveBanner(msg, durationMs = 5000) {
+function showSaveBanner(msg, durationMs = 5000, tone = "success") {
   const el = q("saveSuccessBanner");
   if (!el) return;
+  el.classList.remove("error");
+  if (tone === "error") el.classList.add("error");
   el.textContent = msg;
   el.classList.remove("hidden");
   if (showSaveBanner._timer) clearTimeout(showSaveBanner._timer);
   showSaveBanner._timer = setTimeout(() => {
     el.classList.add("hidden");
   }, durationMs);
+}
+async function checkRunInTop20(runId) {
+  if (!cloud.client) return false;
+  const { data, error } = await cloud.client
+    .from("leaderboard")
+    .select("run_id")
+    .order("score", { ascending: false })
+    .order("created_at", { ascending: true })
+    .limit(20);
+  if (error || !data) return false;
+  return data.some((row) => String(row.run_id) === String(runId));
 }
 function renderTopAvatar() {
   const slot = q("accountAvatar");
@@ -1054,6 +1067,7 @@ async function saveRunToCloud(manual = false) {
     saveInFlight = false;
     saveFailedRunId = runId;
     setAuthMessage(`保存本局失败：${error.message}`);
+    showSaveBanner(`写入失败：${error.message}`, 7000, "error");
     game.addLog(`云端保存失败：${error.message}`, "cloud_save", { status: "run_error", error: error.message });
     render();
     return;
@@ -1070,9 +1084,14 @@ async function saveRunToCloud(manual = false) {
   saveFailedRunId = null;
   saveInFlight = false;
   setAuthMessage("本局结果已保存到云端。");
-  showSaveBanner("写入成功：已更新排行榜前 20 名。");
   game.addLog("本局结果已保存到云端胜利榜。", "cloud_save", { status: "success", run_id: runCloudId });
   await loadLeaderboard();
+  const inTop20 = await checkRunInTop20(runCloudId);
+  if (inTop20) {
+    showSaveBanner("写入成功：你已进入全服前 20。");
+  } else {
+    showSaveBanner("写入成功：成绩已保存，但暂未进入全服前 20。");
+  }
   q("rankModal")?.classList.remove("hidden");
   render();
 }
@@ -1101,6 +1120,7 @@ async function uploadPendingRunIfReady() {
   if (error) {
     saveInFlight = false;
     setAuthMessage(`补传本局失败：${error.message}`);
+    showSaveBanner(`补传失败：${error.message}`, 7000, "error");
     return;
   }
   const runCloudId = data?.id;
@@ -1115,8 +1135,13 @@ async function uploadPendingRunIfReady() {
   saveFailedRunId = null;
   saveInFlight = false;
   setAuthMessage("刚才暂存的本局结果已写入云端积分榜。");
-  showSaveBanner("写入成功：已更新排行榜前 20 名。");
   await loadLeaderboard();
+  const inTop20 = await checkRunInTop20(runCloudId);
+  if (inTop20) {
+    showSaveBanner("补传成功：你已进入全服前 20。");
+  } else {
+    showSaveBanner("补传成功：成绩已保存，但暂未进入全服前 20。");
+  }
   q("rankModal")?.classList.remove("hidden");
   render();
 }
