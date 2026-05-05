@@ -171,6 +171,19 @@ th {
   font-size: 12px;
   margin-bottom: 4px;
 }
+.run-action-btn {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #c6d2ea;
+  background: #edf2ff;
+  color: #29406e;
+  font-size: 12px;
+}
+.event-run-meta {
+  padding: 8px 12px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
 .empty {
   color: var(--muted);
   padding: 14px;

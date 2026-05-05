@@ -53,7 +53,7 @@
             <table id="runsTable">
               <thead>
                 <tr>
-                  <th>时间</th><th>玩家</th><th>分数</th><th>现金</th><th>债务</th><th>天数</th><th>原因</th><th>事件</th>
+                  <th>时间</th><th>玩家</th><th>分数</th><th>现金</th><th>债务</th><th>天数</th><th>原因</th><th>事件</th><th>操作</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -81,8 +81,9 @@
       <section class="panel">
         <div class="panel-head">
           <h2>事件流</h2>
-            <span id="eventsHint"></span>
+            <span id="eventsHint">请先选择一局</span>
           </div>
+          <p id="eventsRunMeta" class="panel-note event-run-meta">当前未选择对局</p>
           <div id="eventsList" class="events-list"></div>
         </section>
       </section>

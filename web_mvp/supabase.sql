@@ -55,7 +55,7 @@ create policy "Users can view their own runs"
   using (auth.uid() = user_id);
 
 create or replace view public.leaderboard as
-select distinct on (gr.user_id)
+select
   gr.user_id,
   coalesce(p.display_name, '匿名玩家') as display_name,
   p.avatar_url,
@@ -69,7 +69,7 @@ select distinct on (gr.user_id)
   gr.created_at
 from public.game_runs gr
 left join public.profiles p on p.id = gr.user_id
-order by gr.user_id, gr.score desc, gr.created_at asc;
+order by gr.score desc, gr.created_at asc;
 
 grant select on public.leaderboard to anon, authenticated;
 

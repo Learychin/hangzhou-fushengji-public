@@ -2,6 +2,7 @@
 
 const state = { client: null };
 let adminVerified = false;
+let selectedRunId = null;
 const PLATFORM_INFO = [
   {
     key: "github",
@@ -131,8 +132,18 @@ function renderRuns(rows) {
       <td>${esc(row.days_used)}</td>
       <td>${esc(row.ended_reason)}</td>
       <td>${esc(row.event_count)}</td>
+      <td><button class="run-action-btn" data-run-id="${esc(row.id)}" data-run-name="${esc(row.display_name || row.email || "-")}" data-run-time="${esc(fmtDate(row.created_at))}">查看事件</button></td>
     </tr>
   `).join("");
+  q("runsTable").querySelectorAll(".run-action-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      selectedRunId = btn.dataset.runId || null;
+      const who = btn.dataset.runName || "未知玩家";
+      const when = btn.dataset.runTime || "-";
+      q("eventsRunMeta").textContent = `当前对局：${who}｜${when}`;
+      loadEventsForSelectedRun();
+    });
+  });
 }
 function renderEventSummary(rows) {
   q("eventSummaryHint").textContent = `${rows.length} 类`;
@@ -147,7 +158,7 @@ function renderEventSummary(rows) {
   `).join("") : `<tr><td colspan="5" class="empty-cell">完成一局后这里会显示事件类型分布。</td></tr>`;
 }
 function renderEvents(rows) {
-  q("eventsHint").textContent = `${rows.length} 条`;
+  q("eventsHint").textContent = selectedRunId ? `${rows.length} 条` : "请先选择一局";
   q("eventsList").innerHTML = rows.length ? rows.map((row) => `
     <article class="event">
       <div class="event-meta">
@@ -159,6 +170,20 @@ function renderEvents(rows) {
       <div>${esc(row.message)}</div>
     </article>
   `).join("") : `<div class="empty">还没有事件记录。完成一局后这里会出现玩家事件流。</div>`;
+}
+async function loadEventsForSelectedRun() {
+  if (!selectedRunId) {
+    renderEvents([]);
+    return;
+  }
+  try {
+    q("eventsHint").textContent = "读取中...";
+    const events = await callRpc("admin_events", { p_run_id: selectedRunId });
+    renderEvents(events || []);
+  } catch (error) {
+    q("eventsHint").textContent = "读取失败";
+    q("eventsList").innerHTML = `<div class="empty">${esc(error.message || "加载事件失败")}</div>`;
+  }
 }
 function setActiveTab(name) {
   const isOps = name === "ops";
@@ -291,18 +316,22 @@ async function refresh() {
   if (!adminVerified) return;
   q("adminStatus").textContent = "读取中...";
   try {
-    const [overview, users, runs, eventSummary, events] = await Promise.all([
+    const [overview, users, runs, eventSummary] = await Promise.all([
       callRpc("admin_overview"),
       callRpc("admin_users"),
       callRpc("admin_runs"),
       callRpc("admin_event_summary"),
-      callRpc("admin_events"),
     ]);
     renderOverview(overview);
     renderUsers(users);
     renderRuns(runs);
     renderEventSummary(eventSummary);
-    renderEvents(events);
+    if (!selectedRunId) {
+      q("eventsRunMeta").textContent = "当前未选择对局";
+      renderEvents([]);
+    } else {
+      await loadEventsForSelectedRun();
+    }
     const newestRun = runs[0]?.created_at ? `｜最近对局：${fmtDate(runs[0].created_at)}` : "｜最近对局：暂无";
     q("adminStatus").textContent = `已更新：${new Date().toLocaleString("zh-CN")} ${newestRun}`;
   } catch (error) {
