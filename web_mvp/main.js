@@ -1493,6 +1493,15 @@ q("newGameBtnTop").addEventListener("click", () => {
 });
 q("eventOkBtn").addEventListener("click", () => { showNextModal(); });
 q("startConfirmBtn").addEventListener("click", () => { closeStartModal(); });
+q("startGoogleBtn").addEventListener("click", () => {
+  closeStartModal();
+  authWithProvider("google");
+});
+q("startEmailBtn").addEventListener("click", () => {
+  closeStartModal();
+  q("accountModal")?.classList.remove("hidden");
+  updateAccountUi();
+});
 q("endSaveBtn").addEventListener("click", async () => {
   runUploadConsent = true;
   if (!cloud.user) storePendingRun("end_save");
