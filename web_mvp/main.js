@@ -1,6 +1,9 @@
 "use strict";
 const GAME_VERSION_CODE = "HZFSJ-MARKET-ALPHA-8x10";
 const EVENT_LOG_LIMIT = 800;
+const PENDING_RUN_KEY = "bfsj_pending_run";
+const ENABLE_RANDOM_EVENT_POPUPS = false;
+const ENABLE_STATUS_SYSTEM = false;
 
 class GameEngine {
   constructor() {
@@ -355,6 +358,7 @@ class GameEngine {
 
 
   doHealthEvents() {
+    if (!ENABLE_STATUS_SYSTEM) return;
     for (const e of this.healthEvents) {
       if (this.rnd(1000) % e.freq === 0) {
         this.health -= e.hurt;
@@ -369,6 +373,7 @@ class GameEngine {
   }
 
   applyTradeImpact(goodsId, count, side) {
+    if (!ENABLE_STATUS_SYSTEM) return;
     const g = this.goods[goodsId];
     if (!g || count <= 0) return;
     if (g.kind === "physical" && count >= 70 && this.rnd(100) < 26) {
@@ -406,6 +411,7 @@ class GameEngine {
   }
 
   applyOneTradeEvent(goodsId, count, turnover) {
+    if (!ENABLE_STATUS_SYSTEM) return;
     const rule = this.tradeEvents[goodsId];
     if (!rule || count <= 0 || turnover <= 0) return;
     const triggerRate = 12 + Math.min(14, Math.floor(count / 8));
@@ -429,6 +435,7 @@ class GameEngine {
   }
 
   checkCriticalStates() {
+    if (!ENABLE_STATUS_SYSTEM) return;
     if (this.fame < 30 && !this.gameOver) {
       this.addLog("名声跌破30，你在圈子里混不下去，只能打道回府回老家。", "game_over", { reason: "reputation", score: this.score });
       this.gameOver = true;
@@ -497,7 +504,7 @@ class GameEngine {
     this.doHealthEvents();
     this.doStealEvents();
     this.checkCriticalStates();
-    if (this.debt > 100000) {
+    if (ENABLE_STATUS_SYSTEM && this.debt > 100000) {
       this.health -= 20;
       this.addLog("欠债压力爆表，身心状态恶化，健康-20。", "debt_pressure", { delta_health: -20, debt: this.debt });
       this.checkCriticalStates();
@@ -590,8 +597,9 @@ class GameEngine {
   deposit(n) { const v = Math.max(0, Math.min(n, this.cash)); this.cash -= v; this.bank += v; this.addLog(`存款 ${v}`, "finance", { action: "deposit", amount: v }); }
   withdraw(n) { const v = Math.max(0, Math.min(n, this.bank)); this.bank -= v; this.cash += v; this.addLog(`取款 ${v}`, "finance", { action: "withdraw", amount: v }); }
   repay(n) { if (this.debt <= 0) return this.addLog("你没有欠债。", "input_error", { action: "repay", reason: "no_debt" }); const v = Math.max(0, Math.min(n, this.cash, this.debt)); this.cash -= v; this.debt -= v; this.addLog(`还债 ${v}`, "finance", { action: "repay", amount: v }); }
-  cure(points) { if (this.health >= 100) return this.addLog("你状态很好，不需要治疗。", "input_error", { action: "cure", reason: "full_health" }); const p = Math.max(1, Math.min(points, 100 - this.health)); const cost = p * 3500; if (this.cash < cost) return this.addLog("现金不足，无法治疗。", "input_error", { action: "cure", reason: "insufficient_cash", cost }); this.cash -= cost; this.health += p; this.addLog(`治疗 +${p}，花费 ${cost}`, "health_action", { action: "cure", points: p, cost }); }
+  cure(points) { if (!ENABLE_STATUS_SYSTEM) return this.addLog("健康系统开发中，医院治疗暂时关闭。", "system", { action: "cure_paused" }); if (this.health >= 100) return this.addLog("你状态很好，不需要治疗。", "input_error", { action: "cure", reason: "full_health" }); const p = Math.max(1, Math.min(points, 100 - this.health)); const cost = p * 3500; if (this.cash < cost) return this.addLog("现金不足，无法治疗。", "input_error", { action: "cure", reason: "insufficient_cash", cost }); this.cash -= cost; this.health += p; this.addLog(`治疗 +${p}，花费 ${cost}`, "health_action", { action: "cure", points: p, cost }); }
   charity(amount) {
+    if (!ENABLE_STATUS_SYSTEM) return this.addLog("名声系统开发中，慈善功能暂时关闭。", "system", { action: "charity_paused" });
     const pay = Math.max(500, Math.min(amount, this.cash));
     if (this.cash < 500) return this.addLog("现金不足，无法捐款。", "input_error", { action: "charity", reason: "insufficient_cash" });
     this.cash -= pay;
@@ -611,6 +619,7 @@ class GameEngine {
     this.lastMarketPopups.push(`慈善事件\n${msg}`);
   }
   wellness(amount) {
+    if (!ENABLE_STATUS_SYSTEM) return this.addLog("健康系统开发中，修养疗程暂时关闭。", "system", { action: "wellness_paused" });
     const pay = Math.max(1000, Math.min(amount, this.cash));
     if (this.cash < 1000) return this.addLog("现金不足，无法开启修养疗程。", "input_error", { action: "wellness", reason: "insufficient_cash" });
     this.cash -= pay;
@@ -746,6 +755,7 @@ async function handleOAuthRedirect() {
   cloud.user = data.session?.user || cloud.user;
   setAuthMessage("Google 登录成功。");
   game.addLog("Google 登录成功，游戏结束后会自动保存成绩。", "auth", { provider: "google", status: "success" });
+  await uploadPendingRunIfReady();
 }
 function summarizeEvents(events) {
   const summary = {};
@@ -754,6 +764,19 @@ function summarizeEvents(events) {
     summary[type] = (summary[type] || 0) + 1;
   }
   return summary;
+}
+function normalizeEventRows(events, userId, runCloudId) {
+  return (events || []).slice(-EVENT_LOG_LIMIT).map((event, index) => ({
+    run_id: runCloudId,
+    user_id: userId,
+    event_index: index,
+    event_type: event.event_type || "log",
+    day: event.day || 0,
+    message: event.message || "",
+    state: event.state || {},
+    payload: event.payload || {},
+    created_at: event.created_at || new Date().toISOString(),
+  }));
 }
 function gameSnapshot() {
   return {
@@ -784,6 +807,43 @@ function endedReasonText() {
   if (code === "reputation") return "名声崩盘";
   if (code === "completed") return "45天期满";
   return "中途结束";
+}
+function pendingRunFromCurrentGame() {
+  const snapshot = gameSnapshot();
+  return {
+    local_run_id: runId,
+    version: GAME_VERSION_CODE,
+    score: game.score,
+    cash: game.cash,
+    bank: game.bank,
+    debt: game.debt,
+    health: game.health,
+    fame: game.fame,
+    coat: game.coat,
+    days_used: snapshot.days_used,
+    ended_reason: endedReason(),
+    final_state: snapshot,
+    events: (game.eventLog || []).slice(-EVENT_LOG_LIMIT),
+    saved_at: new Date().toISOString(),
+  };
+}
+function storePendingRun(reason = "manual") {
+  if (!game.gameOver) return null;
+  const pending = { ...pendingRunFromCurrentGame(), pending_reason: reason };
+  window.localStorage.setItem(PENDING_RUN_KEY, JSON.stringify(pending));
+  return pending;
+}
+function readPendingRun() {
+  try {
+    const raw = window.localStorage.getItem(PENDING_RUN_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_error) {
+    window.localStorage.removeItem(PENDING_RUN_KEY);
+    return null;
+  }
+}
+function clearPendingRun() {
+  window.localStorage.removeItem(PENDING_RUN_KEY);
 }
 function fallbackPlayerName() {
   return cloud.profile?.display_name || cloud.user?.user_metadata?.name || cloud.user?.email?.split("@")[0] || "游客";
@@ -920,7 +980,12 @@ async function saveRunToCloud(manual = false) {
     return;
   }
   if (!cloud.client || !cloud.user) {
-    if (manual) setAuthMessage("请先登录，登录后可以保存本局结果。");
+    if (manual) {
+      storePendingRun("awaiting_login");
+      setAuthMessage("已暂存本局结果。请先登录，登录成功后会自动写入积分榜。");
+      q("accountModal")?.classList.remove("hidden");
+      updateAccountUi();
+    }
     return;
   }
   if (savedRunId === runId) {
@@ -953,17 +1018,7 @@ async function saveRunToCloud(manual = false) {
   }
   const runCloudId = data?.id;
   if (runCloudId && game.eventLog?.length) {
-    const eventRows = game.eventLog.slice(-EVENT_LOG_LIMIT).map((event, index) => ({
-      run_id: runCloudId,
-      user_id: cloud.user.id,
-      event_index: index,
-      event_type: event.event_type || "log",
-      day: event.day || 0,
-      message: event.message || "",
-      state: event.state || {},
-      payload: event.payload || {},
-      created_at: event.created_at || new Date().toISOString(),
-    }));
+    const eventRows = normalizeEventRows(game.eventLog, cloud.user.id, runCloudId);
     const { error: eventError } = await cloud.client.from("game_events").insert(eventRows);
     if (eventError) {
       game.addLog(`对局事件保存失败：${eventError.message}`, "cloud_save", { status: "events_error", error: eventError.message });
@@ -974,6 +1029,48 @@ async function saveRunToCloud(manual = false) {
   saveInFlight = false;
   setAuthMessage("本局结果已保存到云端。");
   game.addLog("本局结果已保存到云端胜利榜。", "cloud_save", { status: "success", run_id: runCloudId });
+  await loadLeaderboard();
+  render();
+}
+async function uploadPendingRunIfReady() {
+  const pending = readPendingRun();
+  if (!pending || !cloud.client || !cloud.user || saveInFlight) return;
+  saveInFlight = true;
+  setAuthMessage("正在补传刚才暂存的本局成绩...");
+  const { data, error } = await cloud.client.from("game_runs").insert({
+    user_id: cloud.user.id,
+    score: pending.score,
+    cash: pending.cash,
+    bank: pending.bank,
+    debt: pending.debt,
+    health: pending.health,
+    fame: pending.fame,
+    coat: pending.coat,
+    days_used: pending.days_used,
+    ended_reason: pending.ended_reason,
+    final_state: {
+      ...(pending.final_state || {}),
+      recovered_from_local_pending: true,
+      pending_saved_at: pending.saved_at,
+    },
+  }).select("id").single();
+  if (error) {
+    saveInFlight = false;
+    setAuthMessage(`补传本局失败：${error.message}`);
+    return;
+  }
+  const runCloudId = data?.id;
+  if (runCloudId && pending.events?.length) {
+    const { error: eventError } = await cloud.client
+      .from("game_events")
+      .insert(normalizeEventRows(pending.events, cloud.user.id, runCloudId));
+    if (eventError) setAuthMessage(`成绩已保存，但事件补传失败：${eventError.message}`);
+  }
+  clearPendingRun();
+  if (pending.local_run_id === runId) savedRunId = runId;
+  saveFailedRunId = null;
+  saveInFlight = false;
+  setAuthMessage("刚才暂存的本局结果已写入云端积分榜。");
   await loadLeaderboard();
   render();
 }
@@ -989,7 +1086,9 @@ function updateAccountUi() {
       ? "游戏本体可用，正在连接云端..."
     : signedIn
       ? "已登录。游戏结束后会自动保存本局结果。"
-      : "未登录。可以用邮箱注册/登录；Google 和 Apple 需要先在 Supabase 后台配置 OAuth。";
+      : readPendingRun()
+        ? "有一局成绩已暂存。登录后会自动写入积分榜。"
+        : "未登录。可以用邮箱注册/登录；Google 和 Apple 需要先在 Supabase 后台配置 OAuth。";
   setCloudStatus(status);
   renderTopAvatar();
 }
@@ -1050,6 +1149,7 @@ async function authWithEmail(mode) {
   setAuthMessage(mode === "signup" ? "注册成功，已登录。" : "登录成功。");
   await loadProfile();
   updateAccountUi();
+  await uploadPendingRunIfReady();
 }
 async function authWithProvider(provider) {
   if (!cloud.client) {
@@ -1058,6 +1158,7 @@ async function authWithProvider(provider) {
   }
   if (!cloud.client) return setAuthMessage("Supabase 连接失败，请刷新页面后再试。");
   setAuthMessage(`正在跳转到 ${provider === "google" ? "Google" : provider} 登录...`);
+  if (game.gameOver && runUploadConsent === true && savedRunId !== runId) storePendingRun("oauth_redirect");
   const { error } = await cloud.client.auth.signInWithOAuth({
     provider,
     options: { redirectTo: authRedirectUrl() },
@@ -1099,11 +1200,13 @@ async function initCloud() {
   updateAccountUi();
   initPresence();
   await loadLeaderboard();
+  await uploadPendingRunIfReady();
   cloud.client.auth.onAuthStateChange(async (_event, session) => {
     cloud.user = session?.user || null;
     await loadProfile();
     updateAccountUi();
     await trackPresence(true);
+    await uploadPendingRunIfReady();
     if (cloud.user && game.gameOver && savedRunId !== runId) await saveRunToCloud();
   });
 }
@@ -1180,25 +1283,32 @@ function renderMap() {
   }
 }
 function fireProfit(pnl) {
-  if (pnl < 1000000) return;
+  if (pnl < 600000) return;
   const host = document.createElement("div");
   host.className = "fireworks";
   document.body.appendChild(host);
-  const colors = ["#ffd166", "#ef476f", "#06d6a0", "#118ab2", "#f78c6b"];
-  const bursts = 48;
-  for (let i = 0; i < bursts; i++) {
-    const el = document.createElement("span");
-    const angle = (Math.PI * 2 * i) / bursts;
-    const radius = 60 + Math.random() * 140;
-    el.className = "firework";
-    el.style.left = `${20 + Math.random() * 60}%`;
-    el.style.top = `${20 + Math.random() * 50}%`;
-    el.style.setProperty("--dx", `${Math.cos(angle) * radius}px`);
-    el.style.setProperty("--dy", `${Math.sin(angle) * radius}px`);
-    el.style.background = colors[i % colors.length];
-    host.appendChild(el);
+  const colors = ["#ffd166", "#ef476f", "#06d6a0", "#118ab2", "#f78c6b", "#f1f5ff"];
+  const centers = [
+    [22, 28], [50, 22], [78, 30],
+    [30, 56], [70, 58],
+  ];
+  for (const [cx, cy] of centers) {
+    const bursts = 84;
+    for (let i = 0; i < bursts; i++) {
+      const el = document.createElement("span");
+      const angle = (Math.PI * 2 * i) / bursts;
+      const radius = 90 + Math.random() * 220;
+      el.className = "firework";
+      el.style.left = `${cx + (Math.random() * 5 - 2.5)}%`;
+      el.style.top = `${cy + (Math.random() * 5 - 2.5)}%`;
+      el.style.setProperty("--dx", `${Math.cos(angle) * radius}px`);
+      el.style.setProperty("--dy", `${Math.sin(angle) * radius}px`);
+      el.style.animationDelay = `${Math.random() * 0.7}s`;
+      el.style.background = colors[(i + Math.floor(Math.random() * colors.length)) % colors.length];
+      host.appendChild(el);
+    }
   }
-  setTimeout(() => host.remove(), 2300);
+  setTimeout(() => host.remove(), 4300);
 }
 function render() {
   q("dayText").textContent = game.dayText;
@@ -1252,14 +1362,18 @@ function render() {
   q("logs").innerHTML = fullLogs.slice().reverse().map((x) => `<div>${x}</div>`).join("");
 
   if (game.lastMarketPopups && game.lastMarketPopups.length > 0) {
-    modalQueue.push(...game.lastMarketPopups);
+    if (ENABLE_RANDOM_EVENT_POPUPS) {
+      modalQueue.push(...game.lastMarketPopups);
+      showNextModal();
+    }
     game.lastMarketPopups = [];
-    showNextModal();
   }
   if (game.rumor && game.rumor.msg) {
-    modalQueue.push(`社交情报：\\n${game.rumor.msg}`);
+    if (ENABLE_RANDOM_EVENT_POPUPS) {
+      modalQueue.push(`社交情报：\\n${game.rumor.msg}`);
+      showNextModal();
+    }
     game.rumor = null;
-    showNextModal();
   }
   if (!game.gameOver && !startPromptShown) showStartModal();
   if (game.gameOver && endPromptRunId !== runId) {
@@ -1302,6 +1416,7 @@ q("eventOkBtn").addEventListener("click", () => { showNextModal(); });
 q("startConfirmBtn").addEventListener("click", () => { closeStartModal(); });
 q("endSaveBtn").addEventListener("click", async () => {
   runUploadConsent = true;
+  if (!cloud.user) storePendingRun("end_save");
   closeEndModal();
   await saveRunToCloud(true);
 });

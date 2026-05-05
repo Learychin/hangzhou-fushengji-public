@@ -559,17 +559,18 @@ button:disabled {
 }
 .firework {
   position: absolute;
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   opacity: 0;
-  animation: burst 1900ms ease-out forwards;
+  box-shadow: 0 0 10px currentColor;
+  animation: burst 3200ms cubic-bezier(.12,.84,.2,1) forwards;
 }
 @keyframes burst {
-  0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
-  12% { opacity: 1; }
-  55% { opacity: 0.9; }
-  100% { transform: translate(var(--dx), var(--dy)) scale(1.05); opacity: 0; }
+  0% { transform: translate(0, 0) scale(0.45); opacity: 0; }
+  9% { opacity: 1; }
+  55% { opacity: 0.96; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(1.25); opacity: 0; }
 }
 
 @media (max-width: 1100px) {
