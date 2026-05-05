@@ -638,7 +638,22 @@ class GameEngine {
     this.addLog(msg, "health_action", { action: "wellness", amount: pay, delta_health: heal, outcome: "success" });
     this.lastMarketPopups.push(`修养疗程\n${msg}`);
   }
-  rentHouse() { if (this.coat === 150) return this.addLog("仓位已经够大。", "input_error", { action: "rent_house", reason: "max_capacity" }); if (this.cash < 36000) return this.addLog("现金不足 36000，暂时不能升级仓位。", "input_error", { action: "rent_house", reason: "insufficient_cash" }); const before = this.coat; if (this.cash <= 36000) this.cash -= 30000; else this.cash = Math.floor(this.cash / 2) - 2000; this.coat += 10; this.addLog(`升级仓位成功，容量提升到 ${this.coat}`, "capacity_upgrade", { before, after: this.coat }); }
+  rentHouse() {
+    const MAX_CAP = 500;
+    if (this.coat >= MAX_CAP) return this.addLog("仓位已经到达上限 500。", "input_error", { action: "rent_house", reason: "max_capacity", max_capacity: MAX_CAP });
+    const next = this.coat + 10;
+    let cost = 22000;
+    if (next > 180) cost = 32000;
+    if (next > 240) cost = 48000;
+    if (next > 320) cost = 68000;
+    if (next > 400) cost = 92000;
+    if (next > 460) cost = 128000;
+    if (this.cash < cost) return this.addLog(`现金不足 ${cost}，暂时不能升级仓位。`, "input_error", { action: "rent_house", reason: "insufficient_cash", required_cash: cost });
+    const before = this.coat;
+    this.cash -= cost;
+    this.coat = Math.min(MAX_CAP, next);
+    this.addLog(`升级仓位成功，容量提升到 ${this.coat}（花费 ${cost}）`, "capacity_upgrade", { before, after: this.coat, cost, max_capacity: MAX_CAP });
+  }
   wangba() { if (this.wangbaVisits > 3) return this.addLog("共享工位老板提醒：今天别再熬了。", "input_error", { action: "side_job", reason: "daily_limit" }); if (this.cash < 20) return this.addLog("至少要带 20 元才能进共享工位。", "input_error", { action: "side_job", reason: "insufficient_cash" }); this.wangbaVisits += 1; const gain = 3 + this.rnd(16); this.cash += gain; this.addLog(`接到临时小单，赚了 ${gain} 元`, "side_job", { gain, visits: this.wangbaVisits }); }
   buyRumor() { if (this.cash < this.coffeeCost) { this.addLog("现金不足，买不起社交咖啡。", "input_error", { action: "buy_rumor", reason: "insufficient_cash", cost: this.coffeeCost }); return; } this.cash -= this.coffeeCost; const targetLoc = 1 + this.rnd(this.locations.length); const targetGood = this.goods[this.rnd(this.goods.length)]; const row = this.locMultipliers[targetLoc - 1] || {}; let pct; let direction; const hitRate = this.timeLeft >= 40 ? 90 : 85; if (this.rnd(100) < hitRate) { direction = "up"; pct = 50 + this.rnd(36); const turnsLeft = this.timeLeft >= 40 ? 4 : 3; this.rumorBuff = { targetLoc, goodId: targetGood.id, direction: "up", turnsLeft }; } else { direction = "down"; pct = -(20 + this.rnd(21)); this.rumorBuff = { targetLoc, goodId: targetGood.id, direction: "down", turnsLeft: 2 }; } const dir = pct >= 0 ? "更贵" : "更便宜"; const msg = `花了30元咖啡打听到：${this.cityLabels[targetLoc - 1]} 的 ${targetGood.name} 价格可能比当前站点${dir} ${Math.abs(pct)}%。（情报有效期 2-3 天）`; this.rumor = { msg, targetLoc, goodId: targetGood.id, pct, direction }; this.addLog("你通过社交拿到一条行情传闻。", "rumor", { cost: this.coffeeCost, target_location_id: targetLoc, target_location: this.cityLabels[targetLoc - 1], goods_id: targetGood.id, goods: targetGood.name, pct, direction }); }
   smartRepay() { if (this.debt <= 0 || this.cash <= 0) return 0; const reserve = 1000; const pay = Math.max(0, Math.min(this.debt, this.cash - reserve)); if (pay <= 0) return 0; this.repay(pay); return pay; }
