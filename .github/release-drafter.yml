@@ -1,0 +1,48 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+template: |
+  ## 杭州浮生记版本更新
+
+  $CHANGES
+
+  ## 说明
+  - 本版本内容由 PR 标签自动汇总生成。
+  - 若需补充运营文案，请在发布前手动编辑。
+
+categories:
+  - title: "玩法与数值"
+    labels:
+      - "area:gameplay"
+      - "area:balance"
+  - title: "界面与交互"
+    labels:
+      - "area:ui"
+      - "area:ux"
+  - title: "系统与云端"
+    labels:
+      - "area:backend"
+      - "area:infra"
+  - title: "问题修复"
+    labels:
+      - "type:fix"
+  - title: "其他改动"
+    labels:
+      - "type:chore"
+
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+no-changes-template: "- 本次没有可归类更新。"
+
+version-resolver:
+  major:
+    labels:
+      - "semver:major"
+  minor:
+    labels:
+      - "semver:minor"
+  patch:
+    labels:
+      - "semver:patch"
+  default: patch
+
+exclude-labels:
+  - "skip-changelog"

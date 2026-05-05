@@ -1,0 +1,27 @@
+area:ui:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "web_mvp/index.html"
+          - "web_mvp/styles.css"
+
+area:gameplay:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "web_mvp/main.js"
+          - "wechat_minigame/src/engine.js"
+          - "wechat_minigame/game.js"
+
+area:backend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "supabase/**"
+          - "web_mvp/supabase.sql"
+          - "wechat_minigame/cloudfunctions/**"
+          - "wechat_minigame/src/cloud.js"
+
+area:infra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - "scripts/**"
+          - "netlify.toml"
