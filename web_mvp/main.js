@@ -724,6 +724,16 @@ function setCloudStatus(msg) {
   const el = q("cloudStatusText");
   if (el) el.textContent = msg;
 }
+function showSaveBanner(msg, durationMs = 5000) {
+  const el = q("saveSuccessBanner");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove("hidden");
+  if (showSaveBanner._timer) clearTimeout(showSaveBanner._timer);
+  showSaveBanner._timer = setTimeout(() => {
+    el.classList.add("hidden");
+  }, durationMs);
+}
 function renderTopAvatar() {
   const slot = q("accountAvatar");
   if (!slot) return;
@@ -1043,8 +1053,10 @@ async function saveRunToCloud(manual = false) {
   saveFailedRunId = null;
   saveInFlight = false;
   setAuthMessage("本局结果已保存到云端。");
+  showSaveBanner("写入成功：已更新排行榜前 20 名。");
   game.addLog("本局结果已保存到云端胜利榜。", "cloud_save", { status: "success", run_id: runCloudId });
   await loadLeaderboard();
+  q("rankModal")?.classList.remove("hidden");
   render();
 }
 async function uploadPendingRunIfReady() {
@@ -1086,7 +1098,9 @@ async function uploadPendingRunIfReady() {
   saveFailedRunId = null;
   saveInFlight = false;
   setAuthMessage("刚才暂存的本局结果已写入云端积分榜。");
+  showSaveBanner("写入成功：已更新排行榜前 20 名。");
   await loadLeaderboard();
+  q("rankModal")?.classList.remove("hidden");
   render();
 }
 function updateAccountUi() {

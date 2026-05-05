@@ -34,6 +34,18 @@ body {
   padding: 14px 16px;
   margin-bottom: 10px;
 }
+.save-banner {
+  margin: 10px 2px 0;
+  padding: 10px 12px;
+  border: 1px solid #8fc7a6;
+  border-radius: 10px;
+  background: #edf9f1;
+  color: #1f6b3c;
+  font-weight: 600;
+}
+.save-banner.hidden {
+  display: none;
+}
 h1, h2, p { margin: 0; }
 h1 {
   font-size: 28px;
