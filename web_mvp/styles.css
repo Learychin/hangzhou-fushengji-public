@@ -431,10 +431,18 @@ button:disabled {
   color: #323849;
 }
 .summary-card {
-  width: min(520px, calc(100vw - 24px));
+  width: min(460px, calc(100vw - 24px));
+  padding: 12px;
 }
 .summary-card p {
-  margin: 0 0 8px 0;
+  margin: 0 0 6px 0;
+  font-size: 14px;
+  line-height: 1.42;
+}
+.summary-card h3 {
+  margin: 0 0 6px 0;
+  font-size: 18px;
+  letter-spacing: 0.01em;
 }
 .modal-actions {
   display: flex;
