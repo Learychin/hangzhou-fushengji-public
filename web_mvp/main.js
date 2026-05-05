@@ -306,7 +306,7 @@ class GameEngine {
   handleCashDebt() {
     const rate = this.timeLeft >= 38 ? 0.04 : 0.07;
     this.debt = this.debt + Math.floor(this.debt * rate);
-    const dailyBankRate = 0.05 / 365;
+    const dailyBankRate = 0.01;
     this.bank = this.bank + Math.floor(this.bank * dailyBankRate);
   }
 
@@ -688,6 +688,7 @@ let lastPresenceTrackAt = 0;
 let startPromptShown = false;
 let endPromptRunId = null;
 let runUploadConsent = null;
+let lastCelebratedTradeKey = null;
 const cloud = {
   client: null,
   user: null,
@@ -1038,6 +1039,7 @@ async function saveRunToCloud(manual = false) {
     if (manual) {
       storePendingRun("awaiting_login");
       setAuthMessage("已暂存本局结果。请先登录，登录成功后会自动写入积分榜。");
+      showSaveBanner("本局尚未写入：请先登录账号再保存成绩。", 7000, "error");
       q("accountModal")?.classList.remove("hidden");
       updateAccountUi();
     }
@@ -1381,6 +1383,13 @@ function fireProfit(pnl) {
   }
   setTimeout(() => host.remove(), 4300);
 }
+function pulseCashHeadline() {
+  const el = q("cashHeadline");
+  if (!el) return;
+  el.classList.remove("cash-pulse");
+  void el.offsetWidth;
+  el.classList.add("cash-pulse");
+}
 function render() {
   q("dayText").textContent = game.dayText;
   q("scoreText").textContent = cny(game.score);
@@ -1419,18 +1428,16 @@ function render() {
 
   renderMap();
 
-  const extraTradeLog = [];
-  if (game.lastTrade) {
-    if (game.lastTrade.type === "buy") {
-      extraTradeLog.push(`买入记录：${game.lastTrade.goods} x${game.lastTrade.count}，单价 ${game.lastTrade.unit}，总成本 ${game.lastTrade.total}`);
-    } else if (game.lastTrade.type === "sell") {
-      const sign = game.lastTrade.pnl >= 0 ? "+" : "";
-      extraTradeLog.push(`卖出记录：${game.lastTrade.goods} x${game.lastTrade.count}，单价 ${game.lastTrade.unit}，成交额 ${game.lastTrade.total}，本笔盈亏 ${sign}${game.lastTrade.pnl}`);
-      fireProfit(game.lastTrade.pnl);
+  if (game.lastTrade?.type === "sell") {
+    const t = game.lastTrade;
+    const tradeKey = `${runId}:${t.goodsId}:${t.count}:${t.total}:${t.pnl}`;
+    if (lastCelebratedTradeKey !== tradeKey && Number(t.pnl || 0) >= 600000) {
+      lastCelebratedTradeKey = tradeKey;
+      fireProfit(t.pnl);
+      pulseCashHeadline();
     }
   }
-  const fullLogs = [...game.logs, ...extraTradeLog];
-  q("logs").innerHTML = fullLogs.slice().reverse().map((x) => `<div>${x}</div>`).join("");
+  q("logs").innerHTML = game.logs.slice().reverse().map((x) => `<div>${x}</div>`).join("");
 
   if (game.lastMarketPopups && game.lastMarketPopups.length > 0) {
     if (ENABLE_RANDOM_EVENT_POPUPS) {
@@ -1478,6 +1485,7 @@ q("newGameBtnTop").addEventListener("click", () => {
   savedRunId = null;
   saveFailedRunId = null;
   runUploadConsent = null;
+  lastCelebratedTradeKey = null;
   endPromptRunId = null;
   startPromptShown = false;
   closeEndModal();
