@@ -4,6 +4,47 @@ const EVENT_LOG_LIMIT = 800;
 const PENDING_RUN_KEY = "bfsj_pending_run";
 const ENABLE_RANDOM_EVENT_POPUPS = false;
 const ENABLE_STATUS_SYSTEM = false;
+const MAX_CAPACITY = 500;
+const CAPACITY_STEP = 10;
+
+function capacityStepCost(afterCap) {
+  let cost = 22000;
+  if (afterCap > 180) cost = 32000;
+  if (afterCap > 240) cost = 48000;
+  if (afterCap > 320) cost = 68000;
+  if (afterCap > 400) cost = 92000;
+  if (afterCap > 460) cost = 128000;
+  return cost;
+}
+
+function normalizeCapacityTarget(targetCap, currentCap = 0) {
+  const raw = Number(targetCap);
+  const stepped = Number.isFinite(raw) ? Math.floor(raw / CAPACITY_STEP) * CAPACITY_STEP : currentCap + CAPACITY_STEP;
+  return Math.max(currentCap + CAPACITY_STEP, Math.min(MAX_CAPACITY, stepped));
+}
+
+function buildCapacityPlan(currentCap, targetCap) {
+  const target = normalizeCapacityTarget(targetCap, currentCap);
+  let after = currentCap;
+  let cost = 0;
+  let steps = 0;
+  const detail = [];
+  while (after < target) {
+    after += CAPACITY_STEP;
+    const stepCost = capacityStepCost(after);
+    cost += stepCost;
+    steps += 1;
+    detail.push({ after, cost: stepCost });
+  }
+  return {
+    from: currentCap,
+    target: after,
+    gain: after - currentCap,
+    steps,
+    cost,
+    detail,
+  };
+}
 
 class GameEngine {
   constructor() {
@@ -27,6 +68,10 @@ class GameEngine {
       { id: 16, name: "并购过桥债权包", kind: "financial", weight: 0, base: 18000, span: 42000 },
       { id: 17, name: "量化对冲策略份额", kind: "financial", weight: 0, base: 26000, span: 56000 },
       { id: 18, name: "桌面AI伴侣", kind: "virtual", weight: 0, base: 1800, span: 5200 },
+      { id: 19, name: "云栖大会通票", kind: "virtual", weight: 0, base: 12000, span: 18000 },
+      { id: 20, name: "钱塘夜航包厢", kind: "virtual", weight: 0, base: 18000, span: 24000 },
+      { id: 21, name: "产业基金份额Ⅱ", kind: "financial", weight: 0, base: 26000, span: 38000 },
+      { id: 22, name: "高端机柜预约权", kind: "financial", weight: 0, base: 42000, span: 60000 },
     ];
 
     this.marketEvents = [
@@ -45,6 +90,10 @@ class GameEngine {
       { freq: 102, msg: "数据中心机柜资源告急，配额持续走高。", drug: 15, plus: 2, minus: 0, add: 0 },
       { freq: 108, msg: "并购窗口期传闻发酵，过桥债权包剧烈波动。", drug: 16, plus: 3, minus: 0, add: 0 },
       { freq: 112, msg: "机构调仓引发量化策略踩踏，策略份额大起大落。", drug: 17, plus: 3, minus: 0, add: 0 },
+      { freq: 96, msg: "云栖大会临近，通票与周边被提前锁定。", drug: 19, plus: 2, minus: 0, add: 0 },
+      { freq: 101, msg: "钱塘夜游档期火爆，包厢价格抬升。", drug: 20, plus: 2, minus: 0, add: 0 },
+      { freq: 107, msg: "产业基金路演密集，份额二级市场转热。", drug: 21, plus: 3, minus: 0, add: 0 },
+      { freq: 109, msg: "高端机柜预约权紧俏，买家连夜排单。", drug: 22, plus: 2, minus: 0, add: 0 },
       { freq: 125, msg: "社群团购补货，龙井新茶给你留了额外配额。", drug: 3, plus: 0, minus: 0, add: 5 },
       { freq: 128, msg: "批发市场清仓，你低价拿到一批文创冰箱贴。", drug: 1, plus: 0, minus: 0, add: 8 },
       { freq: 118, msg: "活动赞助余货流出，你收到一批特调饮料。", drug: 0, plus: 0, minus: 0, add: 10 },
@@ -70,6 +119,10 @@ class GameEngine {
       16: { up: { msg: "并购案超预期落地，过桥包大涨。", cashMul: 0.55, fame: 4, health: 0 }, down: { msg: "并购延期，债权包折价出清。", cashMul: -0.39, fame: -5, health: -2 } },
       17: { up: { msg: "波动率抬升，量化策略吃满行情。", cashMul: 0.62, fame: 4, health: 0 }, down: { msg: "策略踩踏，净值瞬间回撤。", cashMul: -0.46, fame: -6, health: -3 } },
       18: { up: { msg: "开箱视频爆火，桌面AI伴侣口碑疯传。", cashMul: 0.58, fame: 5, health: 0 }, down: { msg: "批次固件翻车，用户差评围攻。", cashMul: -0.41, fame: -6, health: -2 } },
+      19: { up: { msg: "云栖大会门票被抢空，通票秒变硬通货。", cashMul: 0.45, fame: 2, health: 0 }, down: { msg: "会务临时改期，通票价格松动。", cashMul: -0.29, fame: -2, health: 0 } },
+      20: { up: { msg: "钱塘夜航包厢被大客户包场，成交价上冲。", cashMul: 0.52, fame: 3, health: 0 }, down: { msg: "天气临时封航，包厢预订被退。", cashMul: -0.34, fame: -2, health: -1 } },
+      21: { up: { msg: "基金路演踩中风口，份额出现连板。", cashMul: 0.64, fame: 4, health: 0 }, down: { msg: "净值回撤加速，份额高位松动。", cashMul: -0.43, fame: -4, health: -2 } },
+      22: { up: { msg: "机柜预约权稀缺，买家追着加价。", cashMul: 0.72, fame: 4, health: 0 }, down: { msg: "扩容窗口被抢先，预约权开始降温。", cashMul: -0.5, fame: -5, health: -2 } },
     };
 
     this.healthEvents = [
@@ -213,12 +266,12 @@ class GameEngine {
     const stage = day <= 15 ? "early" : day <= 30 ? "mid" : "late";
     const pools = {
       early: [0, 1, 2, 3, 5, 7, 10, 11, 12, 14, 18],
-      mid: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 18],
-      late: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+      mid: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 18, 19, 20],
+      late: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
     };
     const allBase = this.goods.map((g) => g.id);
     const primary = pools[stage].slice();
-    const targetCount = 8 + this.rnd(3); // 8~10
+    const targetCount = 9 + this.rnd(3); // 9~11
 
     // 给每一天一点“惊喜外溢”，避免池子过于死板
     const wildcardNeed = 2;
@@ -247,7 +300,7 @@ class GameEngine {
       return out;
     };
 
-    const financialCap = 3;
+    const financialCap = stage === "early" ? 3 : stage === "mid" ? 4 : 5;
     const finPick = pickUnique(financialIds, Math.min(financialCap, targetCount));
     const needNonFin = Math.max(0, targetCount - finPick.length);
     const nonFinPick = pickUnique(nonFinancialIds, needNonFin);
@@ -656,20 +709,56 @@ class GameEngine {
     this.lastMarketPopups.push(`修养疗程\n${msg}`);
   }
   rentHouse() {
-    const MAX_CAP = 500;
-    if (this.coat >= MAX_CAP) return this.addLog("仓位已经到达上限 500。", "input_error", { action: "rent_house", reason: "max_capacity", max_capacity: MAX_CAP });
-    const next = this.coat + 10;
-    let cost = 22000;
-    if (next > 180) cost = 32000;
-    if (next > 240) cost = 48000;
-    if (next > 320) cost = 68000;
-    if (next > 400) cost = 92000;
-    if (next > 460) cost = 128000;
-    if (this.cash < cost) return this.addLog(`现金不足 ${cost}，暂时不能升级仓位。`, "input_error", { action: "rent_house", reason: "insufficient_cash", required_cash: cost });
+    if (this.coat >= MAX_CAPACITY) {
+      return this.addLog(`仓位已经到达上限 ${MAX_CAPACITY}。`, "input_error", {
+        action: "rent_house",
+        reason: "max_capacity",
+        max_capacity: MAX_CAPACITY,
+      });
+    }
+    return this.rentHouseTo(this.coat + CAPACITY_STEP);
+  }
+  rentHouseTo(targetCap) {
+    if (this.coat >= MAX_CAPACITY) {
+      return { ok: false, reason: "max_capacity", plan: buildCapacityPlan(this.coat, this.coat), affordableTarget: this.coat };
+    }
+    const plan = buildCapacityPlan(this.coat, targetCap);
+    if (plan.steps <= 0) {
+      return { ok: false, reason: "invalid_target", plan, affordableTarget: this.coat };
+    }
+    if (this.cash < plan.cost) {
+      let affordableTarget = this.coat;
+      let walk = this.coat;
+      let spent = 0;
+      while (walk < MAX_CAPACITY) {
+        const next = walk + CAPACITY_STEP;
+        const stepCost = capacityStepCost(next);
+        if (spent + stepCost > this.cash) break;
+        spent += stepCost;
+        walk = next;
+        affordableTarget = walk;
+      }
+      const short = plan.cost - this.cash;
+      this.addLog(`当前目标升级需 ${plan.cost}，还差 ${short}。`, "input_error", {
+        action: "rent_house",
+        reason: "insufficient_cash",
+        required_cash: plan.cost,
+        shortfall: short,
+        target_capacity: plan.target,
+      });
+      return { ok: false, reason: "insufficient_cash", plan, affordableTarget };
+    }
     const before = this.coat;
-    this.cash -= cost;
-    this.coat = Math.min(MAX_CAP, next);
-    this.addLog(`升级仓位成功，容量提升到 ${this.coat}（花费 ${cost}）`, "capacity_upgrade", { before, after: this.coat, cost, max_capacity: MAX_CAP });
+    this.cash -= plan.cost;
+    this.coat = plan.target;
+    this.addLog(`升级仓位成功，容量提升到 ${this.coat}（花费 ${plan.cost}）`, "capacity_upgrade", {
+      before,
+      after: this.coat,
+      cost: plan.cost,
+      max_capacity: MAX_CAPACITY,
+      steps: plan.steps,
+    });
+    return { ok: true, plan, affordableTarget: this.coat };
   }
   wangba() { if (this.wangbaVisits > 3) return this.addLog("共享工位老板提醒：今天别再熬了。", "input_error", { action: "side_job", reason: "daily_limit" }); if (this.cash < 20) return this.addLog("至少要带 20 元才能进共享工位。", "input_error", { action: "side_job", reason: "insufficient_cash" }); this.wangbaVisits += 1; const gain = 3 + this.rnd(16); this.cash += gain; this.addLog(`接到临时小单，赚了 ${gain} 元`, "side_job", { gain, visits: this.wangbaVisits }); }
   buyRumor() { if (this.cash < this.coffeeCost) { this.addLog("现金不足，买不起社交咖啡。", "input_error", { action: "buy_rumor", reason: "insufficient_cash", cost: this.coffeeCost }); return; } this.cash -= this.coffeeCost; const targetLoc = 1 + this.rnd(this.locations.length); const targetGood = this.goods[this.rnd(this.goods.length)]; const row = this.locMultipliers[targetLoc - 1] || {}; let pct; let direction; const hitRate = this.timeLeft >= 40 ? 90 : 85; if (this.rnd(100) < hitRate) { direction = "up"; pct = 50 + this.rnd(36); const turnsLeft = this.timeLeft >= 40 ? 4 : 3; this.rumorBuff = { targetLoc, goodId: targetGood.id, direction: "up", turnsLeft }; } else { direction = "down"; pct = -(20 + this.rnd(21)); this.rumorBuff = { targetLoc, goodId: targetGood.id, direction: "down", turnsLeft: 2 }; } const dir = pct >= 0 ? "更贵" : "更便宜"; const msg = `花了30元咖啡打听到：${this.cityLabels[targetLoc - 1]} 的 ${targetGood.name} 价格可能比当前站点${dir} ${Math.abs(pct)}%。（情报有效期 2-3 天）`; this.rumor = { msg, targetLoc, goodId: targetGood.id, pct, direction }; this.addLog("你通过社交拿到一条行情传闻。", "rumor", { cost: this.coffeeCost, target_location_id: targetLoc, target_location: this.cityLabels[targetLoc - 1], goods_id: targetGood.id, goods: targetGood.name, pct, direction }); }
@@ -692,6 +781,7 @@ let endPromptRunId = null;
 let runUploadConsent = null;
 let lastCelebratedTradeKey = null;
 let lastSavedCloudRunId = null;
+let capacityPlanTarget = 0;
 const SAVE_RETRY_DELAYS_MS = [2500, 5000, 9000, 15000];
 const cloud = {
   client: null,
@@ -925,6 +1015,40 @@ function readPendingRun() {
 }
 function clearPendingRun() {
   window.localStorage.removeItem(PENDING_RUN_KEY);
+}
+function closeCapacityModal() {
+  const modal = q("capacityModal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+}
+function renderCapacityPlan(targetValue) {
+  const input = q("capacityTargetInput");
+  const summary = q("capacitySummaryText");
+  const costText = q("capacityCostText");
+  if (!input || !summary || !costText) return;
+  const target = normalizeCapacityTarget(Number(targetValue), game.coat);
+  capacityPlanTarget = target;
+  input.value = String(target);
+  const plan = buildCapacityPlan(game.coat, target);
+  const left = Math.max(0, MAX_CAPACITY - game.coat);
+  const stepPreview = plan.detail.slice(0, 3).map((x) => `${x.after}:${cny(x.cost)}`).join("，");
+  summary.textContent = `当前仓位 ${game.coat}，最多还能增加 ${left}。本次将增加 ${plan.gain}（${plan.steps} 次升级）到 ${plan.target}。`;
+  costText.textContent = `预计花费 ${cny(plan.cost)}。档位预览：${stepPreview}${plan.detail.length > 3 ? "..." : ""}`;
+}
+function openCapacityModal() {
+  const modal = q("capacityModal");
+  const input = q("capacityTargetInput");
+  if (!modal || !input) return;
+  if (game.coat >= MAX_CAPACITY) {
+    game.addLog(`仓位已经到达上限 ${MAX_CAPACITY}。`, "input_error", { action: "rent_house", reason: "max_capacity", max_capacity: MAX_CAPACITY });
+    render();
+    return;
+  }
+  modal.classList.remove("hidden");
+  input.min = String(game.coat + CAPACITY_STEP);
+  input.max = String(MAX_CAPACITY);
+  input.step = String(CAPACITY_STEP);
+  renderCapacityPlan(MAX_CAPACITY);
 }
 function fallbackPlayerName() {
   return cloud.profile?.display_name || cloud.user?.user_metadata?.name || cloud.user?.email?.split("@")[0] || "游客";
@@ -1520,7 +1644,7 @@ q("repaySmartBtn").addEventListener("click", () => {
 q("cureBtn").addEventListener("click", () => { game.cure(nval("curePoints", 1)); render(); });
 q("charityBtn").addEventListener("click", () => { game.charity(nval("blessAmount", 3000)); game.checkCriticalStates(); render(); });
 q("wellnessBtn").addEventListener("click", () => { game.wellness(nval("blessAmount", 3000)); game.checkCriticalStates(); render(); });
-q("rentBtn").addEventListener("click", () => { game.rentHouse(); render(); });
+q("rentBtn").addEventListener("click", () => { openCapacityModal(); });
 q("rumorBtn").addEventListener("click", () => { game.buyRumor(); render(); });
 q("newGameBtnTop").addEventListener("click", () => {
   game.newGame();
@@ -1569,5 +1693,19 @@ q("saveNickBtn").addEventListener("click", () => { saveNickname(q("profileNameIn
 q("retrySaveBtn").addEventListener("click", () => { saveRunToCloud(true); });
 q("signOutBtn").addEventListener("click", () => { signOut(); });
 q("refreshLeaderboardBtn").addEventListener("click", () => { loadLeaderboard(); });
+q("capacityTargetInput").addEventListener("input", () => { renderCapacityPlan(q("capacityTargetInput").value); });
+q("capacityCancelBtn").addEventListener("click", () => { closeCapacityModal(); });
+q("capacityConfirmBtn").addEventListener("click", () => {
+  const target = normalizeCapacityTarget(nval("capacityTargetInput", MAX_CAPACITY), game.coat);
+  const result = game.rentHouseTo(target);
+  if (!result.ok && result.reason === "insufficient_cash" && result.affordableTarget > game.coat) {
+    renderCapacityPlan(result.affordableTarget);
+    showSaveBanner(`当前现金不足，已为你定位可升级到 ${result.affordableTarget}。`, 3200, "error");
+    render();
+    return;
+  }
+  if (result.ok) closeCapacityModal();
+  render();
+});
 render();
 initCloud();

@@ -455,6 +455,12 @@ button:disabled {
   font-size: 14px;
   line-height: 1.42;
 }
+.summary-card label {
+  display: block;
+  margin: 8px 0 4px;
+  font-size: 12px;
+  color: #606574;
+}
 .summary-card h3 {
   margin: 0 0 6px 0;
   font-size: 18px;
