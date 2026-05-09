@@ -1610,7 +1610,7 @@ function render() {
   q("health").textContent = String(game.health);
   q("fame").textContent = String(game.fame);
   q("items").textContent = `${game.totalItems}/${game.coat}`;
-  q("mapTitle").textContent = `杭州市全地点示意图（点击站点移动一天）`;
+  q("mapTitle").textContent = isMobileUi ? "换地方（点击站点移动一天）" : "杭州市全地点示意图（点击站点移动一天）";
   prefillRepayAll();
 
   if (selectedMarket != null && !game.market.some((x) => x.id === selectedMarket)) selectedMarket = null;

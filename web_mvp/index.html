@@ -9,7 +9,7 @@
   <body>
     <div class="app">
       <header class="topbar card">
-        <div>
+        <div class="topbar-brand">
           <h1>杭州浮生记 Web MVP</h1>
           <p id="dayText">杭州浮生(0/45天)</p>
         </div>
@@ -43,7 +43,7 @@
 
       <nav id="mobileTabs" class="mobile-tabs hidden" aria-label="移动端快捷导航">
         <button class="mobile-tab active" data-mobile-tab="trade" id="mobileTabTrade">交易</button>
-        <button class="mobile-tab" data-mobile-tab="map" id="mobileTabMap">跑图</button>
+        <button class="mobile-tab" data-mobile-tab="map" id="mobileTabMap">换地方</button>
         <button class="mobile-tab" data-mobile-tab="status" id="mobileTabStatus">状态</button>
       </nav>
 
@@ -126,7 +126,7 @@
         </div>
 
         <div class="card panel" id="mapPanel">
-          <h2 id="mapTitle">杭州市全地点示意图（点击站点移动一天）</h2>
+          <h2 id="mapTitle">换地方（点击站点移动一天）</h2>
           <div class="map-frame">
             <div id="mapButtons" class="map-grid city-grid"></div>
           </div>
