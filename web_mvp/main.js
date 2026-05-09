@@ -782,6 +782,7 @@ let runUploadConsent = null;
 let lastCelebratedTradeKey = null;
 let lastSavedCloudRunId = null;
 let capacityPlanTarget = 0;
+let isMobileUi = false;
 const SAVE_RETRY_DELAYS_MS = [2500, 5000, 9000, 15000];
 const cloud = {
   client: null,
@@ -795,6 +796,22 @@ const cloud = {
 function q(id) { return document.getElementById(id); }
 function nval(id, d = 0) { const v = Number(q(id).value); return Number.isFinite(v) ? v : d; }
 function cny(n) { return `¥${Number(n).toLocaleString("zh-CN")}`; }
+function detectMobileUi() {
+  const coarse = window.matchMedia?.("(pointer: coarse)").matches;
+  const narrow = window.matchMedia?.("(max-width: 980px)").matches;
+  const ua = navigator.userAgent || "";
+  const mobileUa = /Android|iPhone|iPad|iPod|Mobile|HarmonyOS|Windows Phone/i.test(ua);
+  return Boolean(coarse || narrow || mobileUa);
+}
+function applyDeviceUiMode() {
+  const body = document.body;
+  if (!body) return;
+  const nextMobile = detectMobileUi();
+  if (isMobileUi === nextMobile && (body.classList.contains("mobile-ui") || body.classList.contains("desktop-ui"))) return;
+  isMobileUi = nextMobile;
+  body.classList.toggle("mobile-ui", isMobileUi);
+  body.classList.toggle("desktop-ui", !isMobileUi);
+}
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -1707,5 +1724,8 @@ q("capacityConfirmBtn").addEventListener("click", () => {
   if (result.ok) closeCapacityModal();
   render();
 });
+applyDeviceUiMode();
+window.addEventListener("resize", applyDeviceUiMode);
+window.addEventListener("orientationchange", applyDeviceUiMode);
 render();
 initCloud();
