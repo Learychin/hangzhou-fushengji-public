@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>杭州浮生记 Admin</title>
+    <link rel="stylesheet" href="./admin.css" />
+  </head>
+  <body>
+    <header class="admin-top">
+      <div>
+        <h1>杭州浮生记 Admin</h1>
+        <p id="adminStatus">正在连接...</p>
+      </div>
+      <div class="admin-actions">
+        <a href="./">返回游戏</a>
+        <button id="refreshBtn">刷新</button>
+      </div>
+    </header>
+
+    <main id="adminMain" class="hidden">
+      <section id="platformPage" class="panel">
+        <div class="panel-head">
+          <h2>平台协同总览</h2>
+          <span>Web / 小程序 / 云端统一视图</span>
+        </div>
+        <div id="platformFlow" class="platform-flow"></div>
+        <div id="platformCards" class="platform-grid"></div>
+      </section>
+
+      <section id="overview" class="metric-grid"></section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>用户</h2>
+          <span id="usersHint"></span>
+        </div>
+        <div class="table-wrap">
+          <table id="usersTable">
+            <thead>
+              <tr>
+                <th>邮箱</th><th>昵称</th><th>来源</th><th>注册</th><th>最近登录</th><th>局数</th><th>最高分</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div class="panel-head-main">
+            <h2>对局</h2>
+            <span id="runsHint"></span>
+          </div>
+          <div class="run-batch-tools">
+            <span id="runSelectionInfo">已选 0 局</span>
+            <button id="runSelectAllBtn" type="button">全选当前页</button>
+            <button id="runClearSelectionBtn" type="button">清空选择</button>
+            <button id="runDownloadMdBtn" type="button">批量下载 .md</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="runsTable">
+            <thead>
+              <tr>
+                <th><input id="runsSelectAllCheckbox" type="checkbox" aria-label="全选当前页对局" /></th>
+                <th>时间</th><th>玩家</th><th>分数</th><th>现金</th><th>债务</th><th>天数</th><th>原因</th><th>事件</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>事件类型</h2>
+          <span id="eventSummaryHint"></span>
+        </div>
+        <div class="table-wrap">
+          <table id="eventSummaryTable">
+            <thead>
+              <tr>
+                <th>类型</th><th>事件数</th><th>玩家数</th><th>对局数</th><th>最近出现</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>事件流</h2>
+          <span id="eventsHint">请先选择一局</span>
+        </div>
+        <p id="eventsRunMeta" class="panel-note event-run-meta">当前未选择对局</p>
+        <div id="eventsList" class="events-list"></div>
+      </section>
+    </main>
+
+    <section id="adminGate" class="admin-gate">
+      <div class="admin-gate-card">
+        <h2>后台权限验证</h2>
+        <p id="adminGateText">正在校验管理员身份...</p>
+        <div class="admin-gate-actions">
+          <a href="./">先去游戏页登录</a>
+          <button id="adminRetryBtn">重新校验</button>
+        </div>
+      </div>
+    </section>
+
+    <script src="./config.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="./admin.js"></script>
+  </body>
+</html>
