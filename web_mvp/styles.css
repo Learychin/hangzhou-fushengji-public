@@ -19,7 +19,7 @@ body {
   background: linear-gradient(135deg, var(--bg1), var(--bg2));
 }
 
-.app { max-width: 1320px; margin: 0 auto; padding: 12px; }
+.app { max-width: 1360px; margin: 0 auto; padding: 12px; }
 .hidden { display: none !important; }
 .card {
   border: 1px solid var(--line);
@@ -195,12 +195,14 @@ h2 {
   grid-template-columns: 1.46fr 0.66fr 1.49fr;
   gap: 10px;
   margin-bottom: 10px;
+  align-items: start;
 }
 .bottom-grid {
   display: grid;
   grid-template-columns: 1.57fr 2.30fr;
   gap: 10px;
   margin-bottom: 10px;
+  align-items: start;
 }
 
 .panel { padding: 10px; }
@@ -416,6 +418,268 @@ button:disabled {
   gap: 4px;
   font-size: 13px;
   padding-right: 4px;
+}
+.mobile-tabs {
+  display: none;
+}
+
+body.desktop-ui {
+  overflow-x: hidden;
+}
+body.desktop-ui .app {
+  max-width: 1400px;
+  padding: 10px;
+}
+body.desktop-ui .topbar {
+  margin-bottom: 8px;
+  padding: 12px 14px;
+}
+body.desktop-ui .headline-grid {
+  margin-bottom: 8px;
+  gap: 8px;
+}
+body.desktop-ui .stat-card {
+  padding: 12px 14px;
+}
+body.desktop-ui .stat-card h3 {
+  font-size: clamp(42px, 2.9vw, 54px);
+}
+body.desktop-ui .trade-grid,
+body.desktop-ui .bottom-grid {
+  margin-bottom: 8px;
+  gap: 8px;
+}
+body.desktop-ui .trade-grid {
+  grid-template-columns: minmax(420px, 1.42fr) minmax(240px, 0.58fr) minmax(360px, 1.2fr);
+}
+body.desktop-ui .bottom-grid {
+  grid-template-columns: minmax(460px, 1.18fr) minmax(520px, 1.32fr);
+}
+body.desktop-ui .panel {
+  padding: 8px;
+}
+body.desktop-ui #tradeSection .panel,
+body.desktop-ui #bottomSection .panel {
+  min-height: 0;
+}
+body.desktop-ui .table-scroll {
+  max-height: 300px;
+}
+body.desktop-ui .map-frame {
+  min-height: 430px;
+  max-height: 430px;
+  overflow: auto;
+}
+body.desktop-ui .city-grid {
+  grid-template-columns: repeat(4, minmax(122px, 1fr));
+  gap: 8px;
+}
+body.desktop-ui .district-items {
+  gap: 5px;
+}
+body.desktop-ui .map-btn {
+  min-height: 32px;
+}
+body.desktop-ui .stats strong {
+  font-size: 16px;
+}
+body.desktop-ui .ops {
+  gap: 8px;
+}
+body.desktop-ui .ops-group {
+  padding: 7px;
+}
+body.desktop-ui .ops-row {
+  grid-template-columns: minmax(118px, 1.2fr) repeat(2, minmax(88px, 1fr));
+}
+body.desktop-ui .repay-row {
+  grid-template-columns: minmax(118px, 1.2fr) minmax(160px, 1fr);
+}
+body.desktop-ui #logsSection {
+  padding: 8px;
+}
+body.desktop-ui .logs {
+  max-height: 150px;
+}
+
+body.mobile-ui .app {
+  padding: 8px;
+}
+body.mobile-ui .topbar {
+  padding: 10px;
+  margin-bottom: 8px;
+}
+body.mobile-ui h1 {
+  font-size: 21px;
+}
+body.mobile-ui .top-actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto auto auto auto;
+  gap: 5px;
+  align-items: center;
+}
+body.mobile-ui .online-status {
+  min-height: 30px;
+  padding: 3px 7px;
+  font-size: 11px;
+}
+body.mobile-ui .online-avatar {
+  width: 20px;
+  height: 20px;
+}
+body.mobile-ui .score {
+  font-size: 17px;
+  white-space: nowrap;
+}
+body.mobile-ui .icon-btn,
+body.mobile-ui #newGameBtnTop {
+  min-width: 50px;
+  min-height: 34px;
+  padding: 5px 8px;
+}
+body.mobile-ui .avatar-btn {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+}
+body.mobile-ui .headline-grid {
+  gap: 8px;
+  margin-bottom: 8px;
+  grid-template-columns: 1fr 1fr;
+}
+body.mobile-ui .stat-card {
+  padding: 10px;
+}
+body.mobile-ui .stat-card h3 {
+  font-size: 46px;
+}
+body.mobile-ui .sub {
+  font-size: 12px;
+}
+body.mobile-ui .mobile-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 6px 0 8px;
+  background: linear-gradient(135deg, var(--bg1), var(--bg2));
+}
+body.mobile-ui .mobile-tab {
+  min-height: 36px;
+  font-size: 13px;
+  font-weight: 600;
+}
+body.mobile-ui .mobile-tab.active {
+  background: #dce8ff;
+  border-color: #8eaadd;
+}
+body.mobile-ui .trade-grid,
+body.mobile-ui .bottom-grid {
+  margin-bottom: 8px;
+  gap: 8px;
+  grid-template-columns: 1fr;
+}
+body.mobile-ui .panel {
+  padding: 8px;
+}
+body.mobile-ui #tradeSection .panel-head {
+  align-items: center;
+}
+body.mobile-ui #tradeSection .panel-head button {
+  min-height: 34px;
+  min-width: 98px;
+}
+body.mobile-ui .table-scroll {
+  max-height: 260px;
+}
+body.mobile-ui #marketTable th:nth-child(1),
+body.mobile-ui #marketTable td:nth-child(1) {
+  width: 60%;
+}
+body.mobile-ui #invTable th:nth-child(1),
+body.mobile-ui #invTable td:nth-child(1) {
+  width: 48%;
+}
+body.mobile-ui .middle {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+body.mobile-ui .middle hr {
+  margin: 2px 0;
+}
+body.mobile-ui .middle label,
+body.mobile-ui .ops-row label {
+  font-size: 12px;
+}
+body.mobile-ui .middle button,
+body.mobile-ui .ops-row button,
+body.mobile-ui .repay-row button {
+  min-height: 38px;
+}
+body.mobile-ui .stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+body.mobile-ui .stats strong {
+  font-size: 14px;
+}
+body.mobile-ui .ops {
+  gap: 6px;
+}
+body.mobile-ui .ops-group {
+  padding: 7px;
+}
+body.mobile-ui .ops-row,
+body.mobile-ui .repay-row {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+body.mobile-ui .city-grid {
+  grid-template-columns: repeat(2, minmax(128px, 1fr));
+  gap: 6px;
+}
+body.mobile-ui .map-frame {
+  min-height: 360px;
+  max-height: 64vh;
+  overflow: auto;
+}
+body.mobile-ui .map-btn {
+  min-height: 36px;
+}
+body.mobile-ui #logsSection {
+  margin-bottom: 12px;
+}
+body.mobile-ui .logs {
+  max-height: 180px;
+}
+body.mobile-ui .account-actions,
+body.mobile-ui #userPanel .account-actions,
+body.mobile-ui .leaderboard-list li {
+  grid-template-columns: 1fr;
+}
+body.mobile-ui .leaderboard-list small {
+  grid-column: auto;
+}
+
+body.mobile-ui.mobile-view-trade #bottomSection,
+body.mobile-ui.mobile-view-trade #logsSection {
+  display: none;
+}
+body.mobile-ui.mobile-view-map #tradeSection,
+body.mobile-ui.mobile-view-map #statusPanel,
+body.mobile-ui.mobile-view-map #logsSection {
+  display: none;
+}
+body.mobile-ui.mobile-view-status #tradeSection,
+body.mobile-ui.mobile-view-status #mapPanel {
+  display: none;
+}
+body.mobile-ui.mobile-view-status #logsSection {
+  display: block;
 }
 .logs div {
   padding: 6px 8px;
@@ -639,204 +903,9 @@ button:disabled {
   100% { transform: translate(var(--dx), var(--dy)) scale(1.25); opacity: 0; }
 }
 
-body.desktop-ui {
-  height: 100dvh;
-  overflow: hidden;
-}
-body.desktop-ui .app {
-  max-width: 1460px;
-  height: 100dvh;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow: auto;
-}
-body.desktop-ui .topbar {
-  padding: 10px 12px;
-  margin-bottom: 0;
-}
-body.desktop-ui h1 {
-  font-size: 24px;
-}
-body.desktop-ui .score {
-  font-size: 18px;
-}
-body.desktop-ui .save-banner {
-  margin: 0;
-  padding: 8px 10px;
-}
-body.desktop-ui .headline-grid {
-  gap: 8px;
-  margin-bottom: 0;
-}
-body.desktop-ui .stat-card {
-  padding: 10px 12px;
-}
-body.desktop-ui .stat-card h3 {
-  font-size: clamp(36px, 3.5vw, 46px);
-}
-body.desktop-ui .sub {
-  font-size: 12px;
-}
-body.desktop-ui .trade-grid,
-body.desktop-ui .bottom-grid {
-  gap: 8px;
-  margin-bottom: 0;
-  min-height: 0;
-}
-body.desktop-ui .trade-grid {
-  grid-template-columns: 1.42fr 0.64fr 1.42fr;
-}
-body.desktop-ui .bottom-grid {
-  grid-template-columns: 1.3fr 1.7fr;
-}
-body.desktop-ui .panel {
-  padding: 8px;
-}
-body.desktop-ui .panel-note {
-  margin: 1px 0 6px;
-  font-size: 11px;
-}
-body.desktop-ui .map-frame {
-  min-height: 280px;
-  padding: 8px;
-}
-body.desktop-ui .city-grid {
-  grid-template-columns: repeat(4, minmax(110px, 1fr));
-  gap: 8px;
-}
-body.desktop-ui .map-btn {
-  min-height: 30px;
-  padding: 4px 8px;
-}
-body.desktop-ui .stats strong {
-  font-size: 16px;
-}
-body.desktop-ui .ops {
-  gap: 8px;
-}
-body.desktop-ui .ops-group {
-  padding: 7px;
-}
-body.desktop-ui .ops-group h3 {
-  margin-bottom: 6px;
-}
-body.desktop-ui .ops-row {
-  grid-template-columns: minmax(106px, 1.2fr) repeat(2, minmax(76px, 1fr));
-}
-body.desktop-ui .ops-row button {
-  min-height: 30px;
-}
-body.desktop-ui .repay-row {
-  grid-template-columns: minmax(106px, 1.2fr) minmax(148px, 1fr);
-}
-body.desktop-ui input {
-  padding: 5px 7px;
-}
-body.desktop-ui button {
-  padding: 6px 8px;
-}
-body.desktop-ui .table-scroll {
-  max-height: clamp(170px, 28vh, 320px);
-}
-body.desktop-ui .logs {
-  max-height: clamp(100px, 18vh, 180px);
-}
-
-body.mobile-ui .app {
-  max-width: 100%;
-  padding: 10px;
-}
-body.mobile-ui .topbar {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px;
-}
-body.mobile-ui h1 {
-  font-size: 24px;
-}
-body.mobile-ui .top-actions {
-  width: 100%;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-body.mobile-ui .online-status {
-  min-height: 32px;
-  padding: 4px 8px;
-}
-body.mobile-ui .icon-btn,
-body.mobile-ui #newGameBtnTop {
-  min-height: 36px;
-}
-body.mobile-ui .headline-grid,
-body.mobile-ui .trade-grid,
-body.mobile-ui .bottom-grid {
-  grid-template-columns: 1fr;
-}
-body.mobile-ui .stat-card h3 {
-  font-size: 34px;
-}
-body.mobile-ui .panel {
-  padding: 10px;
-}
-body.mobile-ui .table-scroll {
-  max-height: 34vh;
-}
-body.mobile-ui #marketTable th:nth-child(1),
-body.mobile-ui #marketTable td:nth-child(1) {
-  width: 62%;
-}
-body.mobile-ui #invTable th:nth-child(1),
-body.mobile-ui #invTable td:nth-child(1) {
-  width: 48%;
-}
-body.mobile-ui .middle {
-  grid-template-columns: 1fr;
-  align-items: end;
-}
-body.mobile-ui .middle label {
-  margin: 0;
-}
-body.mobile-ui .middle button {
-  min-height: 40px;
-}
-body.mobile-ui .stats {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-body.mobile-ui .ops-row,
-body.mobile-ui .repay-row {
-  grid-template-columns: 1fr;
-}
-body.mobile-ui .ops-row button {
-  min-height: 38px;
-}
-body.mobile-ui .city-grid {
-  grid-template-columns: repeat(2, minmax(112px, 1fr));
-}
-body.mobile-ui .map-frame {
-  min-height: 300px;
-}
-body.mobile-ui .map-btn {
-  min-height: 38px;
-  font-size: 13px;
-}
-body.mobile-ui .logs {
-  max-height: 240px;
-}
-body.mobile-ui .account-actions,
-body.mobile-ui #userPanel .account-actions,
-body.mobile-ui .leaderboard-list li {
-  grid-template-columns: 1fr;
-}
-body.mobile-ui .leaderboard-list small {
-  grid-column: auto;
-}
-
 @media (max-width: 1100px) {
-  body:not(.desktop-ui) .trade-grid,
-  body:not(.desktop-ui) .bottom-grid {
+  body:not(.desktop-ui):not(.mobile-ui) .trade-grid,
+  body:not(.desktop-ui):not(.mobile-ui) .bottom-grid {
     grid-template-columns: 1fr;
   }
 }

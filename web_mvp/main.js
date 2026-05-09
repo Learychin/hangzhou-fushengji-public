@@ -783,6 +783,7 @@ let lastCelebratedTradeKey = null;
 let lastSavedCloudRunId = null;
 let capacityPlanTarget = 0;
 let isMobileUi = false;
+let mobileView = "trade";
 const SAVE_RETRY_DELAYS_MS = [2500, 5000, 9000, 15000];
 const cloud = {
   client: null,
@@ -803,14 +804,34 @@ function detectMobileUi() {
   const mobileUa = /Android|iPhone|iPad|iPod|Mobile|HarmonyOS|Windows Phone/i.test(ua);
   return Boolean(coarse || narrow || mobileUa);
 }
+function applyMobileView(nextView = "trade") {
+  const body = document.body;
+  if (!body || !body.classList.contains("mobile-ui")) return;
+  const views = ["trade", "map", "status"];
+  mobileView = views.includes(nextView) ? nextView : "trade";
+  body.classList.remove("mobile-view-trade", "mobile-view-map", "mobile-view-status");
+  body.classList.add(`mobile-view-${mobileView}`);
+  document.querySelectorAll(".mobile-tab").forEach((btn) => {
+    const on = btn.dataset.mobileTab === mobileView;
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
 function applyDeviceUiMode() {
   const body = document.body;
   if (!body) return;
   const nextMobile = detectMobileUi();
-  if (isMobileUi === nextMobile && (body.classList.contains("mobile-ui") || body.classList.contains("desktop-ui"))) return;
+  if (isMobileUi === nextMobile && (body.classList.contains("mobile-ui") || body.classList.contains("desktop-ui"))) {
+    if (nextMobile) applyMobileView(mobileView);
+    return;
+  }
   isMobileUi = nextMobile;
   body.classList.toggle("mobile-ui", isMobileUi);
   body.classList.toggle("desktop-ui", !isMobileUi);
+  const tabs = q("mobileTabs");
+  if (tabs) tabs.classList.toggle("hidden", !isMobileUi);
+  if (isMobileUi) applyMobileView(mobileView);
+  else body.classList.remove("mobile-view-trade", "mobile-view-map", "mobile-view-status");
 }
 function escapeHtml(value) {
   return String(value ?? "")
@@ -1723,6 +1744,11 @@ q("capacityConfirmBtn").addEventListener("click", () => {
   }
   if (result.ok) closeCapacityModal();
   render();
+});
+document.querySelectorAll(".mobile-tab").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    applyMobileView(btn.dataset.mobileTab || "trade");
+  });
 });
 applyDeviceUiMode();
 window.addEventListener("resize", applyDeviceUiMode);

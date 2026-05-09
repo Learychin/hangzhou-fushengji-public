@@ -41,7 +41,13 @@
         </article>
       </section>
 
-      <section class="trade-grid">
+      <nav id="mobileTabs" class="mobile-tabs hidden" aria-label="移动端快捷导航">
+        <button class="mobile-tab active" data-mobile-tab="trade" id="mobileTabTrade">交易</button>
+        <button class="mobile-tab" data-mobile-tab="map" id="mobileTabMap">跑图</button>
+        <button class="mobile-tab" data-mobile-tab="status" id="mobileTabStatus">状态</button>
+      </nav>
+
+      <section class="trade-grid" id="tradeSection">
         <div class="card panel">
           <div class="panel-head">
             <h2>黑市</h2>
@@ -79,8 +85,8 @@
         </div>
       </section>
 
-      <section class="bottom-grid">
-        <div class="card panel">
+      <section class="bottom-grid" id="bottomSection">
+        <div class="card panel" id="statusPanel">
           <h2>你的状态</h2>
           <div class="stats">
             <div><span>现金</span><strong id="cash"></strong></div>
@@ -119,7 +125,7 @@
           </div>
         </div>
 
-        <div class="card panel">
+        <div class="card panel" id="mapPanel">
           <h2 id="mapTitle">杭州市全地点示意图（点击站点移动一天）</h2>
           <div class="map-frame">
             <div id="mapButtons" class="map-grid city-grid"></div>
@@ -127,7 +133,7 @@
         </div>
       </section>
 
-      <section class="card panel">
+      <section class="card panel" id="logsSection">
         <h2>事件日志</h2>
         <p class="panel-note">包含成交价与单笔盈亏记录</p>
         <div id="logs" class="logs"></div>
