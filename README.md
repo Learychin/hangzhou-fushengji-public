@@ -6,4 +6,4 @@
 直接打开 `index.html`，或使用任意静态服务器。
 
 ## 发布
-推送到 `main` 分支后，会由 GitHub Actions 自动部署到 GitHub Pages。
+推送到 `main` 分支后，会由 GitHub Pages 自动部署。
