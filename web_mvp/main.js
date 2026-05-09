@@ -831,7 +831,9 @@ function applyDeviceUiMode() {
   body.classList.toggle("mobile-ui", isMobileUi);
   body.classList.toggle("desktop-ui", !isMobileUi);
   const tabs = q("mobileTabs");
+  const strip = q("mobileStatusStrip");
   if (tabs) tabs.classList.toggle("hidden", !isMobileUi);
+  if (strip) strip.classList.toggle("hidden", !isMobileUi);
   if (isMobileUi) applyMobileView(mobileView);
   else body.classList.remove("mobile-view-trade", "mobile-view-map", "mobile-view-status");
 }
@@ -1776,6 +1778,9 @@ function render() {
   q("health").textContent = String(game.health);
   q("fame").textContent = String(game.fame);
   q("items").textContent = `${game.totalItems}/${game.coat}`;
+  if (q("miniCash")) q("miniCash").textContent = cny(game.cash);
+  if (q("miniDebt")) q("miniDebt").textContent = cny(game.debt);
+  if (q("miniItems")) q("miniItems").textContent = `${game.totalItems}/${game.coat}`;
   q("mapTitle").textContent = isMobileUi ? "换地方（点击站点移动一天）" : "杭州市全地点示意图（点击站点移动一天）";
   prefillRepayAll();
 
@@ -1849,6 +1854,7 @@ q("cureBtn").addEventListener("click", () => { game.cure(nval("curePoints", 1));
 q("charityBtn").addEventListener("click", () => { game.charity(nval("blessAmount", 3000)); game.checkCriticalStates(); render(); });
 q("wellnessBtn").addEventListener("click", () => { game.wellness(nval("blessAmount", 3000)); game.checkCriticalStates(); render(); });
 q("rentBtn").addEventListener("click", () => { openCapacityModal(); });
+q("quickExpandBtn").addEventListener("click", () => { openCapacityModal(); });
 q("rumorBtn").addEventListener("click", () => { game.buyRumor(); render(); });
 q("newGameBtnTop").addEventListener("click", () => {
   game.newGame();

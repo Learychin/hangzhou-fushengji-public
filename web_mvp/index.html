@@ -28,6 +28,22 @@
       </header>
       <div id="saveSuccessBanner" class="save-banner hidden" role="status" aria-live="polite"></div>
 
+      <section id="mobileStatusStrip" class="mobile-status-strip card hidden" aria-label="移动端快速状态">
+        <div class="mini-stat">
+          <span>现金</span>
+          <strong id="miniCash">¥0</strong>
+        </div>
+        <div class="mini-stat">
+          <span>欠债</span>
+          <strong id="miniDebt">¥0</strong>
+        </div>
+        <div class="mini-stat">
+          <span>物品</span>
+          <strong id="miniItems">0/0</strong>
+        </div>
+        <button id="quickExpandBtn" class="mini-expand-btn">扩仓</button>
+      </section>
+
       <section class="headline-grid">
         <article class="card stat-card">
           <p class="kicker">CASH ON HAND</p>
@@ -48,7 +64,7 @@
       </nav>
 
       <section class="trade-grid" id="tradeSection">
-        <div class="card panel">
+        <div class="card panel" id="marketPanel">
           <div class="panel-head">
             <h2>黑市</h2>
             <button id="rumorBtn">买行情（咖啡30）</button>
@@ -64,7 +80,7 @@
           </div>
         </div>
 
-        <div class="card panel middle">
+        <div class="card panel middle" id="opsPanel">
           <label>买入数量 <input id="buyCount" type="number" min="1" value="1" /></label>
           <button id="buyBtn">==> 买入</button>
           <hr />
@@ -72,8 +88,8 @@
           <button id="sellBtn"><== 卖出</button>
         </div>
 
-        <div class="card panel">
-          <h2>你的出租屋</h2>
+        <div class="card panel" id="invPanel">
+          <h2>当前持仓</h2>
           <div class="table-scroll">
             <table id="invTable">
               <thead>
