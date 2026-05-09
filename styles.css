@@ -422,6 +422,9 @@ button:disabled {
 .mobile-tabs {
   display: none;
 }
+.mobile-status-strip {
+  display: none;
+}
 
 body.desktop-ui {
   overflow-x: hidden;
@@ -609,6 +612,45 @@ body.mobile-ui .mobile-tabs {
   padding: 4px 0 6px;
   background: linear-gradient(135deg, var(--bg1), var(--bg2));
 }
+body.mobile-ui .mobile-status-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 4px;
+  align-items: stretch;
+  padding: 6px;
+  margin-bottom: 6px;
+}
+body.mobile-ui .mini-stat {
+  background: #eceff6;
+  border: 1px solid #d6dbe8;
+  border-radius: 8px;
+  padding: 4px 6px;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+body.mobile-ui .mini-stat span {
+  font-size: 10px;
+  color: #626978;
+  letter-spacing: 0.03em;
+}
+body.mobile-ui .mini-stat strong {
+  font-size: 12px;
+  line-height: 1.15;
+  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.mobile-ui .mini-expand-btn {
+  min-height: 100%;
+  min-width: 54px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  border-color: #88a6d8;
+  background: #dce8ff;
+}
 body.mobile-ui .mobile-tab {
   min-height: 30px;
   font-size: 12px;
@@ -624,6 +666,9 @@ body.mobile-ui .bottom-grid {
   margin-bottom: 6px;
   gap: 6px;
   grid-template-columns: 1fr;
+}
+body.mobile-ui .headline-grid {
+  display: none;
 }
 body.mobile-ui .panel {
   padding: 7px;
@@ -646,7 +691,7 @@ body.mobile-ui .panel-note {
   margin: 1px 0 5px;
 }
 body.mobile-ui .table-scroll {
-  max-height: 220px;
+  max-height: 250px;
 }
 body.mobile-ui #marketTable th:nth-child(1),
 body.mobile-ui #marketTable td:nth-child(1) {
@@ -755,10 +800,59 @@ body.mobile-ui.mobile-view-trade #bottomSection,
 body.mobile-ui.mobile-view-trade #logsSection {
   display: none;
 }
+body.mobile-ui.mobile-view-trade #tradeSection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "market inv"
+    "market ops";
+  gap: 6px;
+}
+body.mobile-ui.mobile-view-trade #marketPanel {
+  grid-area: market;
+}
+body.mobile-ui.mobile-view-trade #invPanel {
+  grid-area: inv;
+}
+body.mobile-ui.mobile-view-trade #opsPanel {
+  grid-area: ops;
+}
+body.mobile-ui.mobile-view-trade #marketPanel .table-scroll {
+  max-height: 58vh;
+}
+body.mobile-ui.mobile-view-trade #invPanel .table-scroll {
+  max-height: 23vh;
+}
+body.mobile-ui.mobile-view-trade #opsPanel {
+  align-self: start;
+}
 body.mobile-ui.mobile-view-map #tradeSection,
 body.mobile-ui.mobile-view-map #statusPanel,
 body.mobile-ui.mobile-view-map #logsSection {
   display: none;
+}
+
+@media (max-width: 420px) {
+  body.mobile-ui .mobile-status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  body.mobile-ui .mini-expand-btn {
+    grid-column: 1 / -1;
+    min-height: 30px;
+  }
+  body.mobile-ui.mobile-view-trade #tradeSection {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "market"
+      "inv"
+      "ops";
+  }
+  body.mobile-ui.mobile-view-trade #marketPanel .table-scroll {
+    max-height: 30vh;
+  }
+  body.mobile-ui.mobile-view-trade #invPanel .table-scroll {
+    max-height: 18vh;
+  }
 }
 body.mobile-ui.mobile-view-status #tradeSection,
 body.mobile-ui.mobile-view-status #mapPanel {
