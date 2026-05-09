@@ -1100,6 +1100,16 @@ function removeClaimToken(token) {
   const arr = readClaimTokens().filter((x) => x !== token);
   window.localStorage.setItem(CLAIM_TOKENS_KEY, JSON.stringify(arr));
 }
+function refreshClaimTokenHint() {
+  const hint = q("claimTokenHint");
+  if (!hint) return;
+  const tokens = readClaimTokens();
+  if (!tokens.length) {
+    hint.textContent = "暂无待认领的游客回绑码。";
+    return;
+  }
+  hint.textContent = `本设备待认领回绑码 ${tokens.length} 条，登录后会自动尝试认领。`;
+}
 async function claimGuestRunsAfterLogin() {
   if (!cloud.client || !cloud.user) return 0;
   let claimed = 0;
@@ -1121,7 +1131,36 @@ async function claimGuestRunsAfterLogin() {
     showSaveBanner(`成功认领 ${claimed} 条游客战绩。`, 3800);
     await loadLeaderboard();
   }
+  refreshClaimTokenHint();
   return claimed;
+}
+async function claimByTokenManual() {
+  if (!cloud.client || !cloud.user) {
+    setAuthMessage("请先登录账号再认领。");
+    return;
+  }
+  const input = q("claimTokenInput");
+  const token = String(input?.value || "").trim();
+  if (!token) {
+    setAuthMessage("请先输入回绑码。");
+    return;
+  }
+  const { data, error } = await cloud.client.rpc("claim_guest_runs", { p_claim_token: token });
+  if (error) {
+    setAuthMessage(`认领失败：${error.message}`);
+    return;
+  }
+  const n = Number(data || 0);
+  if (n > 0) {
+    removeClaimToken(token);
+    if (input) input.value = "";
+    setAuthMessage(`认领成功：新增 ${n} 条战绩。`);
+    showSaveBanner(`认领成功：${n} 条游客战绩已挂到账号。`, 3600);
+    await loadLeaderboard();
+  } else {
+    setAuthMessage("该回绑码已使用或无效。");
+  }
+  refreshClaimTokenHint();
 }
 async function saveGuestRunToCloud(manual = false) {
   if (!cloud.client) {
@@ -1178,6 +1217,9 @@ async function saveGuestRunToCloud(manual = false) {
   lastSavedCloudRunId = data?.id || null;
   setAuthMessage(`游客上榜成功：${nickname}。后续登录可自动认领历史战绩。`);
   showSaveBanner("写入成功：游客战绩已入榜。", 3200);
+  game.addLog(`游客上榜成功，回绑码：${claimToken}`, "guest_save", { claim_token: claimToken, nickname });
+  window.alert(`上榜成功！你的回绑码：\n${claimToken}\n\n建议截图保存，后续登录可认领战绩。`);
+  refreshClaimTokenHint();
   await loadLeaderboard();
   return true;
 }
@@ -1490,6 +1532,7 @@ function updateAccountUi() {
         : "未登录也可直接上榜（游客模式）。登录后可认领历史战绩。";
   setCloudStatus(status);
   renderTopAvatar();
+  refreshClaimTokenHint();
 }
 async function loadLeaderboard() {
   const list = q("leaderboardList");
@@ -1852,6 +1895,7 @@ q("emailSignupBtn").addEventListener("click", () => { authWithEmail("signup"); }
 q("googleLoginBtn").addEventListener("click", () => { authWithProvider("google"); });
 q("saveNickBtn").addEventListener("click", () => { saveNickname(q("profileNameInput").value); });
 q("retrySaveBtn").addEventListener("click", () => { saveRunToCloud(true); });
+q("claimGuestBtn").addEventListener("click", () => { claimByTokenManual(); });
 q("signOutBtn").addEventListener("click", () => { signOut(); });
 q("refreshLeaderboardBtn").addEventListener("click", () => { loadLeaderboard(); });
 q("capacityTargetInput").addEventListener("input", () => { renderCapacityPlan(q("capacityTargetInput").value); });

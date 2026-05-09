@@ -174,6 +174,10 @@
             </button>
             <button id="appleLoginBtn" disabled title="正在开发中">Apple（开发中）</button>
           </div>
+          <div class="account-actions">
+            <button id="smsLoginBtn" disabled title="正在开发中">手机验证码（开发中）</button>
+            <button id="wechatLoginBtn" disabled title="正在开发中">微信一键登录（开发中）</button>
+          </div>
         </div>
 
         <div id="userPanel" class="account-section hidden">
@@ -187,6 +191,11 @@
             <button id="retrySaveBtn">保存本局</button>
             <button id="signOutBtn">退出登录</button>
           </div>
+          <label>回绑码 <input id="claimTokenInput" type="text" maxlength="48" placeholder="输入游客回绑码（选填）" /></label>
+          <div class="account-actions">
+            <button id="claimGuestBtn">认领游客战绩</button>
+          </div>
+          <p id="claimTokenHint" class="panel-note"></p>
         </div>
 
         <p id="authMessage" class="auth-message"></p>
@@ -212,6 +221,7 @@
           <p>你只有 <strong>45 天</strong>，每移动一次就会消耗 1 天。</p>
           <p>你当前背负 <strong>¥6,000 欠债</strong>，并且每天会累加利息。</p>
           <p><strong>建议先登录：</strong>可用 Google 或 Email 注册登录，方便把高分保存到云端积分榜。</p>
+          <p>未登录也能游客上榜，后续登录可凭回绑码自动认领战绩。</p>
           <p>目标：在 45 天内通过倒买倒卖实现翻盘。</p>
         </div>
         <div class="modal-actions start-auth-actions">
