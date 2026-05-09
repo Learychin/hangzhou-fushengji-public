@@ -2,6 +2,8 @@
 const GAME_VERSION_CODE = "HZFSJ-MARKET-ALPHA-8x10";
 const EVENT_LOG_LIMIT = 800;
 const PENDING_RUN_KEY = "bfsj_pending_run";
+const CLAIM_TOKENS_KEY = "bfsj_claim_tokens";
+const LAST_GUEST_NICK_KEY = "bfsj_last_guest_nickname";
 const ENABLE_RANDOM_EVENT_POPUPS = false;
 const ENABLE_STATUS_SYSTEM = false;
 const MAX_CAPACITY = 500;
@@ -1054,6 +1056,131 @@ function readPendingRun() {
 function clearPendingRun() {
   window.localStorage.removeItem(PENDING_RUN_KEY);
 }
+function stableHash(text) {
+  let h = 2166136261;
+  const s = String(text || "");
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+function buildDeviceFingerprint() {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  const lang = navigator.language || "";
+  const platform = navigator.platform || "";
+  const ua = navigator.userAgent || "";
+  const cores = navigator.hardwareConcurrency || 0;
+  const memory = navigator.deviceMemory || 0;
+  const screenBits = `${screen?.width || 0}x${screen?.height || 0}x${screen?.colorDepth || 0}`;
+  const raw = [tz, lang, platform, ua, cores, memory, screenBits].join("|");
+  return `fp_${stableHash(raw)}`;
+}
+function randomToken(prefix = "c") {
+  const raw = (window.crypto?.randomUUID && window.crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}_${raw.replaceAll("-", "").slice(0, 24)}`;
+}
+function readClaimTokens() {
+  try {
+    const raw = window.localStorage.getItem(CLAIM_TOKENS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (_err) {
+    return [];
+  }
+}
+function storeClaimToken(token) {
+  if (!token) return;
+  const arr = readClaimTokens();
+  if (!arr.includes(token)) arr.unshift(token);
+  window.localStorage.setItem(CLAIM_TOKENS_KEY, JSON.stringify(arr.slice(0, 80)));
+}
+function removeClaimToken(token) {
+  if (!token) return;
+  const arr = readClaimTokens().filter((x) => x !== token);
+  window.localStorage.setItem(CLAIM_TOKENS_KEY, JSON.stringify(arr));
+}
+async function claimGuestRunsAfterLogin() {
+  if (!cloud.client || !cloud.user) return 0;
+  let claimed = 0;
+  const guestId = getGuestId();
+  const { data: guestClaimed, error: guestErr } = await cloud.client.rpc("claim_guest_runs_by_guest_id", {
+    p_guest_id: guestId,
+  });
+  if (!guestErr && Number(guestClaimed || 0) > 0) claimed += Number(guestClaimed);
+  const tokens = readClaimTokens();
+  for (const token of tokens) {
+    const { data, error } = await cloud.client.rpc("claim_guest_runs", { p_claim_token: token });
+    if (!error && Number(data || 0) > 0) {
+      claimed += Number(data);
+      removeClaimToken(token);
+    }
+  }
+  if (claimed > 0) {
+    setAuthMessage(`已为你认领 ${claimed} 条历史战绩。`);
+    showSaveBanner(`成功认领 ${claimed} 条游客战绩。`, 3800);
+    await loadLeaderboard();
+  }
+  return claimed;
+}
+async function saveGuestRunToCloud(manual = false) {
+  if (!cloud.client) {
+    if (manual) setAuthMessage("云端未连接，无法保存游客战绩。");
+    return false;
+  }
+  const defaultName = window.localStorage.getItem(LAST_GUEST_NICK_KEY) || "";
+  const nameRaw = window.prompt("输入上榜昵称（1-24字）：", defaultName || "杭州路人甲");
+  if (nameRaw === null) {
+    if (manual) setAuthMessage("已取消本局上榜。");
+    return false;
+  }
+  const nickname = String(nameRaw || "").trim().slice(0, 24);
+  if (!nickname) {
+    if (manual) setAuthMessage("昵称不能为空。");
+    return false;
+  }
+  window.localStorage.setItem(LAST_GUEST_NICK_KEY, nickname);
+  const claimToken = randomToken("claim");
+  const snapshot = gameSnapshot();
+  const guestPayload = {
+    guest_id: getGuestId(),
+    nickname,
+    device_fingerprint: buildDeviceFingerprint(),
+    claim_token: claimToken,
+    score: game.score,
+    cash: game.cash,
+    bank: game.bank,
+    debt: game.debt,
+    health: game.health,
+    fame: game.fame,
+    coat: game.coat,
+    days_used: snapshot.days_used,
+    ended_reason: endedReason(),
+    final_state: {
+      ...snapshot,
+      entry_mode: "guest",
+      can_claim_with_login: true,
+    },
+  };
+  const { data, error } = await cloud.client
+    .from("guest_runs")
+    .insert(guestPayload)
+    .select("id")
+    .single();
+  if (error) {
+    setAuthMessage(`游客上榜失败：${error.message}`);
+    showSaveBanner(`上榜失败：${error.message}`, 5200, "error");
+    return false;
+  }
+  storeClaimToken(claimToken);
+  savedRunId = runId;
+  saveFailedRunId = null;
+  lastSavedCloudRunId = data?.id || null;
+  setAuthMessage(`游客上榜成功：${nickname}。后续登录可自动认领历史战绩。`);
+  showSaveBanner("写入成功：游客战绩已入榜。", 3200);
+  await loadLeaderboard();
+  return true;
+}
 function closeCapacityModal() {
   const modal = q("capacityModal");
   if (!modal) return;
@@ -1223,14 +1350,7 @@ async function saveRunToCloud(manual = false) {
     return;
   }
   if (!cloud.client || !cloud.user) {
-    if (manual) {
-      storePendingRun("awaiting_login");
-      setAuthMessage("已暂存本局结果。请先登录，登录成功后会自动写入积分榜。");
-      showSaveBanner("本局尚未写入：请先登录账号再保存成绩。", 7000, "error");
-      q("accountModal")?.classList.remove("hidden");
-      updateAccountUi();
-    }
-    return;
+    return saveGuestRunToCloud(manual);
   }
   if (savedRunId === runId) {
     if (manual) setAuthMessage("本局结果已经保存过了。");
@@ -1364,10 +1484,10 @@ function updateAccountUi() {
     : !cloud.ready
       ? "游戏本体可用，正在连接云端..."
     : signedIn
-      ? "已登录。游戏结束后会自动保存本局结果。"
+      ? "已登录。游戏结束后会自动保存本局结果，并可认领游客战绩。"
       : readPendingRun()
         ? "有一局成绩已暂存。登录后会自动写入积分榜。"
-        : "未登录。可以用邮箱注册/登录；Google 和 Apple 需要先在 Supabase 后台配置 OAuth。";
+        : "未登录也可直接上榜（游客模式）。登录后可认领历史战绩。";
   setCloudStatus(status);
   renderTopAvatar();
 }
@@ -1383,7 +1503,7 @@ async function loadLeaderboard() {
   note.textContent = "读取中...";
   const { data, error } = await cloud.client
     .from("leaderboard")
-    .select("run_id, display_name, score, cash, bank, debt, health, days_used, created_at")
+    .select("run_id, display_name, score, cash, bank, debt, health, days_used, created_at, entry_type")
     .order("score", { ascending: false })
     .order("created_at", { ascending: true })
     .limit(20);
@@ -1401,11 +1521,12 @@ async function loadLeaderboard() {
   list.innerHTML = data.map((row, idx) => {
     const when = row.created_at ? new Date(row.created_at).toLocaleDateString("zh-CN") : "";
     const isJustSaved = lastSavedCloudRunId && String(row.run_id) === String(lastSavedCloudRunId);
+    const tag = row.entry_type === "guest" ? "游客" : "账号";
     return `<li class="${isJustSaved ? "just-saved" : ""}">
       <span class="rank-no">#${idx + 1}</span>
       <strong>${row.display_name || "匿名玩家"}</strong>
       <span>${cny(row.score)}</span>
-      <small>${row.days_used}天 / 健康${row.health} / ${when}</small>
+      <small>${row.days_used}天 / 健康${row.health} / ${tag} / ${when}</small>
     </li>`;
   }).join("");
 }
@@ -1429,6 +1550,7 @@ async function authWithEmail(mode) {
   setAuthMessage(mode === "signup" ? "注册成功，已登录。" : "登录成功。");
   await loadProfile();
   updateAccountUi();
+  await claimGuestRunsAfterLogin();
   await uploadPendingRunIfReady();
 }
 async function authWithProvider(provider) {
@@ -1486,6 +1608,7 @@ async function initCloud() {
     await loadProfile();
     updateAccountUi();
     await trackPresence(true);
+    if (cloud.user) await claimGuestRunsAfterLogin();
     await uploadPendingRunIfReady();
     if (cloud.user && game.gameOver && savedRunId !== runId) await saveRunToCloud();
   });
