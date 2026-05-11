@@ -1806,6 +1806,16 @@ function render() {
 
   renderMap();
 
+  const buyCap = selectedMarket != null ? maxBuyCount(selectedMarket) : 0;
+  const sellCap = selectedInv != null ? maxSellCount(selectedInv) : 0;
+  if (q("buyMaxBtn")) q("buyMaxBtn").disabled = !(selectedMarket != null && buyCap > 0);
+  if (q("sellMaxBtn")) q("sellMaxBtn").disabled = !(selectedInv != null && sellCap > 0);
+  if (q("tradeHint")) {
+    const buyText = selectedMarket == null ? "先在黑市选商品" : `最多可买 ${buyCap}`;
+    const sellText = selectedInv == null ? "先在持仓选商品" : `最多可卖 ${sellCap}`;
+    q("tradeHint").textContent = `${buyText} ｜ ${sellText}`;
+  }
+
   if (game.lastTrade?.type === "sell") {
     const t = game.lastTrade;
     const tradeKey = `${runId}:${t.goodsId}:${t.count}:${t.total}:${t.pnl}`;
@@ -1841,6 +1851,24 @@ function render() {
 }
 q("buyBtn").addEventListener("click", () => { if (selectedMarket == null) return; game.buy(selectedMarket, nval("buyCount", 1)); prefillTradeCounts({ buy: true }); render(); });
 q("sellBtn").addEventListener("click", () => { if (selectedInv == null) return; game.sell(selectedInv, nval("sellCount", 1)); prefillTradeCounts({ sell: true }); render(); });
+q("buyMaxBtn").addEventListener("click", () => {
+  if (selectedMarket == null) return;
+  const n = maxBuyCount(selectedMarket);
+  if (n <= 0) return;
+  q("buyCount").value = String(n);
+  game.buy(selectedMarket, n);
+  prefillTradeCounts({ buy: true });
+  render();
+});
+q("sellMaxBtn").addEventListener("click", () => {
+  if (selectedInv == null) return;
+  const n = maxSellCount(selectedInv);
+  if (n <= 0) return;
+  q("sellCount").value = String(n);
+  game.sell(selectedInv, n);
+  prefillTradeCounts({ sell: true });
+  render();
+});
 q("depositBtn").addEventListener("click", () => { game.deposit(nval("bankAmount")); render(); });
 q("withdrawBtn").addEventListener("click", () => { game.withdraw(nval("bankAmount")); render(); });
 q("repaySmartBtn").addEventListener("click", () => {
