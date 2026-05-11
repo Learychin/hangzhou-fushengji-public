@@ -706,6 +706,11 @@ body.mobile-ui .middle {
   grid-template-columns: 1fr;
   gap: 6px;
 }
+body.mobile-ui .quick-trade-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
 body.mobile-ui .middle hr {
   margin: 1px 0;
 }
@@ -719,6 +724,12 @@ body.mobile-ui .repay-row button {
   min-height: 30px;
   font-size: 12px;
   padding: 4px 6px;
+}
+body.mobile-ui #buyMaxBtn,
+body.mobile-ui #sellMaxBtn {
+  background: #e9f0ff;
+  border-color: #a5b9e2;
+  font-weight: 600;
 }
 body.mobile-ui .stats {
   grid-template-columns: repeat(3, minmax(0, 1fr));

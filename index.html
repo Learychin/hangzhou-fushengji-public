@@ -83,9 +83,16 @@
         <div class="card panel middle" id="opsPanel">
           <label>买入数量 <input id="buyCount" type="number" min="1" value="1" /></label>
           <button id="buyBtn">==> 买入</button>
+          <div class="quick-trade-row">
+            <button id="buyMaxBtn">买满</button>
+          </div>
           <hr />
           <label>卖出数量 <input id="sellCount" type="number" min="1" value="1" /></label>
           <button id="sellBtn"><== 卖出</button>
+          <div class="quick-trade-row">
+            <button id="sellMaxBtn">卖光</button>
+          </div>
+          <p id="tradeHint" class="panel-note"></p>
         </div>
 
         <div class="card panel" id="invPanel">
