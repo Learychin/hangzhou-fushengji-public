@@ -4,8 +4,10 @@ const EVENT_LOG_LIMIT = 800;
 const PENDING_RUN_KEY = "bfsj_pending_run";
 const CLAIM_TOKENS_KEY = "bfsj_claim_tokens";
 const LAST_GUEST_NICK_KEY = "bfsj_last_guest_nickname";
+const UI_MODE_PREF_KEY = "bfsj_ui_mode_pref";
 const ENABLE_RANDOM_EVENT_POPUPS = false;
 const ENABLE_STATUS_SYSTEM = false;
+const HIDE_AUTH_UI = true;
 const MAX_CAPACITY = 500;
 const CAPACITY_STEP = 10;
 
@@ -177,6 +179,60 @@ class GameEngine {
     this.lastRumorLoc = 0;
     this.coffeeCost = 30;
     this.rumorBuff = null;
+    this.activeNews = [];
+    this.todayNews = null;
+    this.newsPool = [
+      {
+        title: "【杭州文旅热度攀升】",
+        desc: "假期客流叠加夜游活动，文旅消费情绪走强。",
+        durationMin: 2,
+        durationMax: 4,
+        effects: [
+          { goodsIds: [1, 3, 12, 20], minPct: 10, maxPct: 26, tag: "热门" },
+          { goodsIds: [2, 11], minPct: -12, maxPct: -4, tag: "滞销" },
+        ],
+      },
+      {
+        title: "【算力与硬件需求升温】",
+        desc: "多家科技公司集中扩容，硬件与算力报价抬升。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [6, 10, 15, 18, 22], minPct: 12, maxPct: 34, tag: "稀缺" },
+          { goodsIds: [0, 1], minPct: -10, maxPct: -3, tag: "滞销" },
+        ],
+      },
+      {
+        title: "【跨境履约受阻】",
+        desc: "物流与清关节奏放缓，跨境链路出现折价抛盘。",
+        durationMin: 2,
+        durationMax: 4,
+        effects: [
+          { goodsIds: [13, 14, 16], minPct: -28, maxPct: -10, tag: "政策影响" },
+          { goodsIds: [7, 9], minPct: 6, maxPct: 18, tag: "热门" },
+        ],
+      },
+      {
+        title: "【资本风格切换】",
+        desc: "资金从稳健品撤离，向高波动品集中。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [17, 21], minPct: 14, maxPct: 38, tag: "热门" },
+          { goodsIds: [8, 9], minPct: -18, maxPct: -8, tag: "承压" },
+        ],
+      },
+      {
+        title: "【消费监管趋严】",
+        desc: "平台抽检和营销规范升级，部分热门品类承压。",
+        durationMin: 2,
+        durationMax: 4,
+        effects: [
+          { goodsIds: [5, 11, 14], minPct: -22, maxPct: -9, tag: "政策影响" },
+          { goodsIds: [3, 4], minPct: 8, maxPct: 20, tag: "稀缺" },
+        ],
+      },
+    ];
     this.newGame();
   }
 
@@ -202,6 +258,14 @@ class GameEngine {
     this.rumor = null;
     this.lastRumorLoc = 0;
     this.rumorBuff = null;
+    this.activeNews = [];
+    this.todayNews = {
+      title: "【市场开盘】",
+      desc: "先跑动起来，第一轮行情会在换地方后生成。",
+      effects: [],
+      day: 0,
+    };
+    this.tradeCount = 0;
     this.gameOver = false;
     this.lastTrade = null;
     this.rollLocationMultipliers();
@@ -358,6 +422,114 @@ class GameEngine {
     });
   }
 
+  prepareNewsForDay() {
+    const currentDay = 46 - this.timeLeft;
+    this.activeNews = (this.activeNews || []).filter((n) => n.expiresOnDay >= currentDay);
+
+    const spawnRate = this.timeLeft >= 35 ? 74 : this.timeLeft >= 18 ? 67 : 60;
+    if (this.rnd(100) < spawnRate) {
+      const tpl = this.newsPool[this.rnd(this.newsPool.length)];
+      const duration = tpl.durationMin + this.rnd(tpl.durationMax - tpl.durationMin + 1);
+      const impacts = tpl.effects.map((effect) => {
+        const goodsId = effect.goodsIds[this.rnd(effect.goodsIds.length)];
+        const pct = effect.minPct + this.rnd(effect.maxPct - effect.minPct + 1);
+        return {
+          goodsId,
+          pct,
+          tag: effect.tag,
+        };
+      });
+      const news = {
+        id: `${currentDay}-${Date.now()}-${this.rnd(9999)}`,
+        title: tpl.title,
+        desc: tpl.desc,
+        day: currentDay,
+        expiresOnDay: currentDay + duration - 1,
+        impacts,
+      };
+      this.activeNews.push(news);
+      const impactText = impacts
+        .map((x) => `${this.goods[x.goodsId]?.name || "未知商品"}${x.pct > 0 ? "+" : ""}${x.pct}%`)
+        .join("，");
+      this.addLog(`${news.title} ${news.desc}（${impactText}）`, "market_news", {
+        day: currentDay,
+        expires_on_day: news.expiresOnDay,
+        impacts,
+      });
+    }
+    this.refreshTodayNews(currentDay);
+  }
+
+  refreshTodayNews(currentDay) {
+    const merged = new Map();
+    for (const news of this.activeNews) {
+      if (news.expiresOnDay < currentDay) continue;
+      for (const impact of news.impacts || []) {
+        const row = merged.get(impact.goodsId) || { goodsId: impact.goodsId, pct: 0, tags: new Set() };
+        row.pct += impact.pct;
+        if (impact.tag) row.tags.add(impact.tag);
+        merged.set(impact.goodsId, row);
+      }
+    }
+    const effects = [...merged.values()]
+      .map((x) => ({
+        goodsId: x.goodsId,
+        name: this.goods[x.goodsId]?.name || "未知商品",
+        pct: Math.round(x.pct),
+        tags: [...x.tags],
+      }))
+      .sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct))
+      .slice(0, 6);
+
+    const latest = this.activeNews[this.activeNews.length - 1];
+    if (latest) {
+      this.todayNews = {
+        title: latest.title,
+        desc: latest.desc,
+        day: currentDay,
+        effects,
+      };
+      return;
+    }
+    this.todayNews = {
+      title: "【市场平稳】",
+      desc: "暂无重磅消息，区域价差主导交易机会。",
+      day: currentDay,
+      effects,
+    };
+  }
+
+  buildNewsMultiplierMap() {
+    const currentDay = 46 - this.timeLeft;
+    const map = new Map();
+    for (const news of this.activeNews) {
+      if (news.expiresOnDay < currentDay) continue;
+      for (const impact of news.impacts || []) {
+        const prev = map.get(impact.goodsId) ?? 1;
+        map.set(impact.goodsId, prev * (1 + impact.pct / 100));
+      }
+    }
+    return map;
+  }
+
+  applyNewsToMarketPrices() {
+    if (!this.market || this.market.length === 0) return;
+    const multi = this.buildNewsMultiplierMap();
+    if (multi.size === 0) return;
+    this.market = this.market.map((m) => {
+      const k = multi.get(m.id);
+      if (!k) return m;
+      const nextPrice = Math.max(1, Math.floor(m.price * k));
+      const delta = Math.round((k - 1) * 100);
+      return {
+        ...m,
+        price: nextPrice,
+        trendPct: delta,
+        marketTag: delta >= 16 ? "热门" : delta <= -16 ? "承压" : "波动",
+      };
+    });
+  }
+
   handleCashDebt() {
     const rate = this.timeLeft >= 38 ? 0.04 : 0.07;
     this.debt = this.debt + Math.floor(this.debt * rate);
@@ -407,6 +579,7 @@ class GameEngine {
     }
     this.market = this.goods.filter(g => priceMap.has(g.id) && priceMap.get(g.id) > 0).map(g => ({ id: g.id, name: g.name, price: priceMap.get(g.id), kind: g.kind, weight: g.weight }));
     this.applyLocationSpread();
+    this.applyNewsToMarketPrices();
     this.displayDrugs();
     this.lastMarketPopups = popups;
   }
@@ -567,6 +740,7 @@ class GameEngine {
     this.currentLoc = locIdx;
     this.lastRumorLoc = locIdx;
     this.rollLocationMultipliers();
+    this.prepareNewsForDay();
     this.makeDrugPrices(this.timeLeft <= 2 ? 0 : 3);
     this.applyLocationSpread();
     this.handleCashDebt();
@@ -634,6 +808,7 @@ class GameEngine {
     this.applyOneTradeEvent(goodsId, n, totalCost);
     this.checkCriticalStates();
     this.lastTrade = { type: "buy", goodsId, goods: mk.name, count: n, unit: unitPrice, total: totalCost };
+    this.tradeCount += 1;
   }
 
   sell(goodsId, count) {
@@ -664,6 +839,7 @@ class GameEngine {
     this.applyOneTradeEvent(goodsId, n, n * mk.price);
     this.checkCriticalStates();
     this.lastTrade = { type: "sell", goodsId, goods: mk.name, count: n, unit: mk.price, total: n * mk.price, avgCost, pnl };
+    this.tradeCount += 1;
   }
 
   deposit(n) { const v = Math.max(0, Math.min(n, this.cash)); this.cash -= v; this.bank += v; this.addLog(`存款 ${v}`, "finance", { action: "deposit", amount: v }); }
@@ -786,6 +962,15 @@ let lastSavedCloudRunId = null;
 let capacityPlanTarget = 0;
 let isMobileUi = false;
 let mobileView = "trade";
+let debtGuideDismissed = false;
+let debtGuideShown = false;
+let marketRefreshPending = false;
+let marketRefreshTimer = null;
+let lastDebtGuideTradeKey = null;
+let lastBuyHundredTradeKey = null;
+let expandGuideDismissed = false;
+let forcedUiMode = null;
+let mobileMenuOpen = false;
 const SAVE_RETRY_DELAYS_MS = [2500, 5000, 9000, 15000];
 const cloud = {
   client: null,
@@ -799,6 +984,177 @@ const cloud = {
 function q(id) { return document.getElementById(id); }
 function nval(id, d = 0) { const v = Number(q(id).value); return Number.isFinite(v) ? v : d; }
 function cny(n) { return `¥${Number(n).toLocaleString("zh-CN")}`; }
+function cnyCompact(n) {
+  const num = Number(n) || 0;
+  const sign = num < 0 ? "-" : "";
+  const abs = Math.abs(num);
+  if (abs >= 100000000) return `${sign}${(abs / 100000000).toFixed(2)}亿`;
+  if (abs >= 10000000) return `${sign}${(abs / 10000000).toFixed(2)}千万`;
+  if (abs >= 1000000) return `${sign}${(abs / 1000000).toFixed(2)}百万`;
+  return `${sign}${abs.toLocaleString("zh-CN")}`;
+}
+function loadUiModePref() {
+  const raw = window.localStorage.getItem(UI_MODE_PREF_KEY);
+  if (raw === "mobile" || raw === "desktop") forcedUiMode = raw;
+  else forcedUiMode = null;
+}
+function saveUiModePref(mode) {
+  if (mode === "mobile" || mode === "desktop") window.localStorage.setItem(UI_MODE_PREF_KEY, mode);
+  else window.localStorage.removeItem(UI_MODE_PREF_KEY);
+}
+function updateUiModeToggleButton() {
+  const btn = q("uiModeToggleBtn");
+  if (!btn) return;
+  if (isMobileUi) {
+    btn.textContent = "切桌面端";
+    btn.title = "当前移动端视图，点击切换到桌面端";
+  } else {
+    btn.textContent = "切移动端";
+    btn.title = "当前桌面端视图，点击切换到移动端";
+  }
+}
+function applyAuthUiVisibility() {
+  const body = document.body;
+  if (!body) return;
+  body.classList.toggle("hide-auth-ui", HIDE_AUTH_UI);
+  if (!HIDE_AUTH_UI) return;
+  q("accountModal")?.classList.add("hidden");
+}
+function nextCapacityStepCost() {
+  if (game.coat >= MAX_CAPACITY) return Infinity;
+  return capacityStepCost(game.coat + CAPACITY_STEP);
+}
+function canExpandNow() {
+  return game.coat < MAX_CAPACITY && game.cash >= nextCapacityStepCost();
+}
+function setDebtGuideGlow(on) {
+  ["miniDebtCard", "debtStatCard"].forEach((id) => {
+    const el = q(id);
+    if (!el) return;
+    el.classList.toggle("debt-guide-glow", Boolean(on));
+    el.classList.toggle("debt-guide-ready", Boolean(on));
+  });
+}
+function clearDebtGuide(opts = {}) {
+  const { openRepay = false } = opts;
+  debtGuideDismissed = true;
+  setDebtGuideGlow(false);
+  hideDebtGuideTip();
+  if (openRepay) openRepayModal();
+}
+function showDebtGuideTip() {
+  const tip = q("debtGuideTip");
+  if (!tip) return;
+  tip.classList.remove("hidden");
+}
+function hideDebtGuideTip() {
+  const tip = q("debtGuideTip");
+  if (!tip) return;
+  tip.classList.add("hidden");
+}
+function showExpandGuideTip() {
+  if (expandGuideDismissed) return;
+  const tip = q("expandGuideTip");
+  if (!tip) return;
+  tip.classList.remove("hidden");
+}
+function hideExpandGuideTip() {
+  const tip = q("expandGuideTip");
+  if (!tip) return;
+  tip.classList.add("hidden");
+}
+function updateExpandGuideTip() {
+  if (canExpandNow() && !expandGuideDismissed) showExpandGuideTip();
+  else hideExpandGuideTip();
+}
+function maybeShowDebtGuideByProfit(tradeKey, pnl) {
+  if (game.debt <= 0) {
+    setDebtGuideGlow(false);
+    hideDebtGuideTip();
+    return;
+  }
+  if (!(pnl > 0)) return;
+  if (lastDebtGuideTradeKey === tradeKey) return;
+  lastDebtGuideTradeKey = tradeKey;
+  debtGuideDismissed = false;
+  debtGuideShown = true;
+  setDebtGuideGlow(true);
+  showDebtGuideTip();
+}
+function openRepayModal() {
+  const modal = q("repayModal");
+  const input = q("repayModalAmount");
+  const info = q("repayModalInfo");
+  if (!modal || !input || !info) return;
+  const maxPay = Math.max(0, Math.min(game.cash, game.debt));
+  info.textContent = `可用 ${cny(game.cash)} ｜ 欠债 ${cny(game.debt)}。建议先还一部分。`;
+  input.max = String(maxPay);
+  input.value = String(maxPay > 0 ? maxPay : 0);
+  modal.classList.remove("hidden");
+  input.focus();
+  input.select();
+}
+function closeRepayModal() {
+  const modal = q("repayModal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+}
+function repayFromModal(amount, opts = {}) {
+  const { all = false } = opts;
+  const pay = all ? Math.max(0, Math.min(game.cash, game.debt)) : Math.max(0, Math.min(amount, game.cash, game.debt));
+  if (pay <= 0) {
+    game.addLog("当前现金不足以触发还债。", "input_error", { action: "repay_modal", reason: "insufficient_cash" });
+    render();
+    return;
+  }
+  game.repay(pay);
+  clearDebtGuide();
+  closeRepayModal();
+  showSaveBanner(`已还债 ${cny(pay)}。`, 2200);
+  render();
+}
+function renderPlaceDockGrid() {
+  const grid = q("placeDockGrid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  const order = ["xihu", "shangcheng", "gongshu", "binjiang", "yuhang", "xiaoshan", "qiantang"];
+  const grouped = {};
+  for (const key of order) grouped[key] = [];
+  game.cityLabels.forEach((name, idx) => {
+    const district = game.locationDistricts[idx] || "shangcheng";
+    if (!grouped[district]) grouped[district] = [];
+    grouped[district].push({ idx, name });
+  });
+  for (const district of order) {
+    const spots = grouped[district];
+    if (!spots || spots.length === 0) continue;
+    const block = document.createElement("section");
+    block.className = `place-district-block district-${district}`;
+    const title = document.createElement("h3");
+    title.className = "place-district-title";
+    title.textContent = game.districtLabels[district] || "城区";
+    const wrap = document.createElement("div");
+    wrap.className = "place-district-items";
+    for (const spot of spots) {
+      const loc = spot.idx + 1;
+      const b = document.createElement("button");
+      b.className = `place-dock-item district-${district}`;
+      if (game.currentLoc === loc) b.classList.add("active");
+      b.innerHTML = `<span>${spot.name}</span>`;
+      b.addEventListener("click", () => { travelToLocation(loc); });
+      wrap.appendChild(b);
+    }
+    block.appendChild(title);
+    block.appendChild(wrap);
+    grid.appendChild(block);
+  }
+}
+function travelToLocation(locIdx) {
+  const prevLoc = game.currentLoc;
+  game.oneTravelTurn(locIdx);
+  if (game.currentLoc !== prevLoc) marketRefreshPending = true;
+  render();
+}
 function detectMobileUi() {
   const coarse = window.matchMedia?.("(pointer: coarse)").matches;
   const narrow = window.matchMedia?.("(max-width: 980px)").matches;
@@ -809,9 +1165,9 @@ function detectMobileUi() {
 function applyMobileView(nextView = "trade") {
   const body = document.body;
   if (!body || !body.classList.contains("mobile-ui")) return;
-  const views = ["trade", "map", "status"];
+  const views = ["trade", "status"];
   mobileView = views.includes(nextView) ? nextView : "trade";
-  body.classList.remove("mobile-view-trade", "mobile-view-map", "mobile-view-status");
+  body.classList.remove("mobile-view-trade", "mobile-view-status");
   body.classList.add(`mobile-view-${mobileView}`);
   document.querySelectorAll(".mobile-tab").forEach((btn) => {
     const on = btn.dataset.mobileTab === mobileView;
@@ -822,9 +1178,10 @@ function applyMobileView(nextView = "trade") {
 function applyDeviceUiMode() {
   const body = document.body;
   if (!body) return;
-  const nextMobile = detectMobileUi();
+  const nextMobile = forcedUiMode ? forcedUiMode === "mobile" : detectMobileUi();
   if (isMobileUi === nextMobile && (body.classList.contains("mobile-ui") || body.classList.contains("desktop-ui"))) {
     if (nextMobile) applyMobileView(mobileView);
+    updateUiModeToggleButton();
     return;
   }
   isMobileUi = nextMobile;
@@ -835,7 +1192,8 @@ function applyDeviceUiMode() {
   if (tabs) tabs.classList.toggle("hidden", !isMobileUi);
   if (strip) strip.classList.toggle("hidden", !isMobileUi);
   if (isMobileUi) applyMobileView(mobileView);
-  else body.classList.remove("mobile-view-trade", "mobile-view-map", "mobile-view-status");
+  else body.classList.remove("mobile-view-trade", "mobile-view-status");
+  updateUiModeToggleButton();
 }
 function escapeHtml(value) {
   return String(value ?? "")
@@ -1104,13 +1462,45 @@ function removeClaimToken(token) {
 }
 function refreshClaimTokenHint() {
   const hint = q("claimTokenHint");
+  const latestInput = q("latestClaimToken");
   if (!hint) return;
   const tokens = readClaimTokens();
   if (!tokens.length) {
     hint.textContent = "暂无待认领的游客回绑码。";
+    if (latestInput) latestInput.value = "";
     return;
   }
   hint.textContent = `本设备待认领回绑码 ${tokens.length} 条，登录后会自动尝试认领。`;
+  if (latestInput) latestInput.value = tokens[0];
+}
+async function copyLatestClaimToken() {
+  const tokens = readClaimTokens();
+  if (!tokens.length) {
+    setAuthMessage("当前没有可复制的回绑码。");
+    showSaveBanner("当前没有可复制的回绑码。", 2200, "error");
+    return;
+  }
+  const token = tokens[0];
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(token);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = token;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    setAuthMessage("回绑码已复制到剪贴板。");
+    showSaveBanner("回绑码复制成功。", 2200);
+  } catch (_error) {
+    setAuthMessage("复制失败，请手动长按复制。");
+    showSaveBanner("复制失败，请手动复制。", 2600, "error");
+  }
 }
 async function claimGuestRunsAfterLogin() {
   if (!cloud.client || !cloud.user) return 0;
@@ -1230,17 +1620,41 @@ function closeCapacityModal() {
   if (!modal) return;
   modal.classList.add("hidden");
 }
-function renderCapacityPlan(targetValue) {
+function affordableCapacityByCash(cash = game.cash, currentCap = game.coat) {
+  let walk = currentCap;
+  let spent = 0;
+  while (walk < MAX_CAPACITY) {
+    const next = walk + CAPACITY_STEP;
+    const stepCost = capacityStepCost(next);
+    if (spent + stepCost > cash) break;
+    spent += stepCost;
+    walk = next;
+  }
+  return { target: walk, gain: walk - currentCap, cost: spent };
+}
+function renderCapacityPlan(expandValue) {
   const input = q("capacityTargetInput");
   const summary = q("capacitySummaryText");
+  const affordableText = q("capacityAffordableText");
   const costText = q("capacityCostText");
   if (!input || !summary || !costText) return;
-  const target = normalizeCapacityTarget(Number(targetValue), game.coat);
+  const maxAffordable = affordableCapacityByCash();
+  const maxGain = Math.max(0, maxAffordable.gain || 0);
+  input.max = String(Math.max(CAPACITY_STEP, MAX_CAPACITY - game.coat));
+  input.min = String(CAPACITY_STEP);
+  input.step = String(CAPACITY_STEP);
+  const rawGain = Number(expandValue);
+  const steppedGain = Number.isFinite(rawGain) ? Math.floor(rawGain / CAPACITY_STEP) * CAPACITY_STEP : CAPACITY_STEP;
+  const gain = Math.max(CAPACITY_STEP, Math.min(MAX_CAPACITY - game.coat, steppedGain));
+  const target = normalizeCapacityTarget(game.coat + gain, game.coat);
   capacityPlanTarget = target;
-  input.value = String(target);
+  input.value = String(Math.max(CAPACITY_STEP, target - game.coat));
   const plan = buildCapacityPlan(game.coat, target);
   const left = Math.max(0, MAX_CAPACITY - game.coat);
   const stepPreview = plan.detail.slice(0, 3).map((x) => `${x.after}:${cny(x.cost)}`).join("，");
+  if (affordableText) {
+    affordableText.textContent = `你当前现金 ${cny(game.cash)}，最多可扩 ${maxGain} 仓（到 ${maxAffordable.target}）。`;
+  }
   summary.textContent = `当前仓位 ${game.coat}，最多还能增加 ${left}。本次将增加 ${plan.gain}（${plan.steps} 次升级）到 ${plan.target}。`;
   costText.textContent = `预计花费 ${cny(plan.cost)}。档位预览：${stepPreview}${plan.detail.length > 3 ? "..." : ""}`;
 }
@@ -1254,10 +1668,12 @@ function openCapacityModal() {
     return;
   }
   modal.classList.remove("hidden");
-  input.min = String(game.coat + CAPACITY_STEP);
-  input.max = String(MAX_CAPACITY);
+  const affordable = affordableCapacityByCash();
+  const defaultGain = affordable.gain > 0 ? affordable.gain : CAPACITY_STEP;
+  input.min = String(CAPACITY_STEP);
+  input.max = String(MAX_CAPACITY - game.coat);
   input.step = String(CAPACITY_STEP);
-  renderCapacityPlan(MAX_CAPACITY);
+  renderCapacityPlan(defaultGain);
 }
 function fallbackPlayerName() {
   return cloud.profile?.display_name || cloud.user?.user_metadata?.name || cloud.user?.email?.split("@")[0] || "游客";
@@ -1287,9 +1703,10 @@ function getGuestId() {
 function updateOnlineUi() {
   const countEl = q("onlineCountText");
   const avatarsEl = q("onlineAvatars");
-  if (!countEl || !avatarsEl) return;
   const players = cloud.onlinePlayers || [];
-  countEl.textContent = `在线 ${players.length}`;
+  if (countEl) countEl.textContent = `在线 ${players.length}`;
+  if (q("mobileMenuOnlineText")) q("mobileMenuOnlineText").textContent = String(players.length);
+  if (!avatarsEl) return;
   avatarsEl.innerHTML = players.slice(0, 5).map((player) => {
     const name = player.display_name || "游客";
     const initial = escapeHtml(name.trim().slice(0, 1) || "?");
@@ -1694,7 +2111,89 @@ function closeEndModal() {
   if (!modal) return;
   modal.classList.add("hidden");
 }
-function renderTable(tableId, rows, cols, selectedId, onSelect) { const tb = document.querySelector(`#${tableId} tbody`); tb.innerHTML = ""; for (const row of rows) { const tr = document.createElement("tr"); if (row.id === selectedId) tr.classList.add("selected"); tr.addEventListener("click", () => onSelect(row.id)); for (const col of cols) { const td = document.createElement("td"); td.textContent = row[col]; tr.appendChild(td); } tb.appendChild(tr); } }
+function renderTable(tableId, rows, cols, selectedId, onSelect) { const tb = document.querySelector(`#${tableId} tbody`); tb.innerHTML = ""; rows.forEach((row, idx) => { const tr = document.createElement("tr"); tr.style.setProperty("--row-index", String(idx)); if (row.id === selectedId) tr.classList.add("selected"); tr.addEventListener("click", () => onSelect(row.id)); for (const col of cols) { const td = document.createElement("td"); td.textContent = row[col]; tr.appendChild(td); } tb.appendChild(tr); }); }
+function renderInventoryTable() {
+  const tb = document.querySelector("#invTable tbody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  let totalCost = 0;
+  let totalValue = 0;
+  for (const row of game.inv) {
+    const tr = document.createElement("tr");
+    if (row.id === selectedInv) tr.classList.add("selected");
+    tr.addEventListener("click", () => {
+      selectedInv = row.id;
+      prefillTradeCounts({ sell: true });
+      render();
+    });
+    const mk = game.market.find((x) => x.id === row.id);
+    const marketPrice = mk ? mk.price : 0;
+    const cost = row.buyPrice * row.count;
+    const value = marketPrice * row.count;
+    const pnl = value - cost;
+    totalCost += cost;
+    totalValue += value;
+
+    const tdName = document.createElement("td");
+    tdName.textContent = row.name;
+    const tdPos = document.createElement("td");
+    tdPos.innerHTML = `均价 ${cny(row.buyPrice)}<br>数量 ${row.count}`;
+    const tdPnl = document.createElement("td");
+    const pnlCls = pnl >= 0 ? "pnl-up" : "pnl-down";
+    tdPnl.innerHTML = `市值 ${cny(value)}<br><span class="${pnlCls}">${pnl >= 0 ? "+" : ""}${cny(pnl)}</span>`;
+    tr.appendChild(tdName);
+    tr.appendChild(tdPos);
+    tr.appendChild(tdPnl);
+    tb.appendChild(tr);
+  }
+  const summary = q("invSummary");
+  if (summary) {
+    const totalPnl = totalValue - totalCost;
+    const pnlCls = totalPnl >= 0 ? "pnl-up" : "pnl-down";
+    summary.innerHTML = `
+      <span>总成本 ${cny(totalCost)}</span>
+      <span>总市值 ${cny(totalValue)}</span>
+      <span class="${pnlCls}">总浮盈亏 ${totalPnl >= 0 ? "+" : ""}${cny(totalPnl)}</span>
+    `;
+  }
+}
+function closeMobileMenu() {
+  const card = q("mobileMenuCard");
+  if (!card) return;
+  mobileMenuOpen = false;
+  card.classList.add("hidden");
+}
+function toggleMobileMenu() {
+  const card = q("mobileMenuCard");
+  if (!card) return;
+  mobileMenuOpen = !mobileMenuOpen;
+  card.classList.toggle("hidden", !mobileMenuOpen);
+}
+function startNewGameFlow() {
+  game.newGame();
+  selectedMarket = null;
+  selectedInv = null;
+  runId += 1;
+  savedRunId = null;
+  saveFailedRunId = null;
+  runUploadConsent = null;
+  lastCelebratedTradeKey = null;
+  endPromptRunId = null;
+  startPromptShown = false;
+  debtGuideDismissed = false;
+  debtGuideShown = false;
+  marketRefreshPending = false;
+  lastDebtGuideTradeKey = null;
+  lastBuyHundredTradeKey = null;
+  expandGuideDismissed = false;
+  setDebtGuideGlow(false);
+  hideDebtGuideTip();
+  hideExpandGuideTip();
+  closeRepayModal();
+  closeEndModal();
+  closeMobileMenu();
+  render();
+}
 function renderMap() {
   const c = q("mapButtons");
   c.innerHTML = "";
@@ -1722,7 +2221,7 @@ function renderMap() {
       b.className = "map-btn";
       b.classList.add(`district-${district}`);
       if (game.currentLoc === spot.idx + 1) b.classList.add("active");
-      b.addEventListener("click", () => { game.oneTravelTurn(spot.idx + 1); render(); });
+      b.addEventListener("click", () => { travelToLocation(spot.idx + 1); });
       wrap.appendChild(b);
     }
     block.appendChild(title);
@@ -1778,9 +2277,38 @@ function render() {
   q("health").textContent = String(game.health);
   q("fame").textContent = String(game.fame);
   q("items").textContent = `${game.totalItems}/${game.coat}`;
-  if (q("miniCash")) q("miniCash").textContent = cny(game.cash);
+  if (q("miniCash")) q("miniCash").textContent = `¥${cnyCompact(game.cash)}`;
   if (q("miniDebt")) q("miniDebt").textContent = cny(game.debt);
   if (q("miniItems")) q("miniItems").textContent = `${game.totalItems}/${game.coat}`;
+  if (q("mobileTopCash")) q("mobileTopCash").textContent = `现金 ¥${cnyCompact(game.cash)}`;
+  if (q("currentLocBadge")) {
+    q("currentLocBadge").textContent = game.currentLoc > 0 ? game.cityLabels[game.currentLoc - 1] : "未出发";
+  }
+  if (q("marketPanel")) q("marketPanel").classList.toggle("market-loc-active", game.currentLoc > 0);
+  if (game.debt <= 0) {
+    setDebtGuideGlow(false);
+    hideDebtGuideTip();
+  }
+  if (q("newsDayTag")) q("newsDayTag").textContent = `第${45 - game.timeLeft}天`;
+  if (q("newsHeadline")) q("newsHeadline").textContent = game.todayNews?.title || "【市场平稳】";
+  if (q("newsDesc")) q("newsDesc").textContent = game.todayNews?.desc || "暂无重磅新闻。";
+  if (q("newsEffects")) {
+    const effects = game.todayNews?.effects || [];
+    q("newsEffects").innerHTML = effects.length
+      ? effects
+          .map((effect) => {
+            const pctClass = effect.pct >= 0 ? "up" : "down";
+            const pctText = `${effect.pct >= 0 ? "+" : ""}${effect.pct}%`;
+            const tags = (effect.tags || []).join(" / ");
+            return `<div class="news-effect-row ${pctClass}">
+              <strong>${escapeHtml(effect.name)}</strong>
+              <span>${pctText}</span>
+              <small>${escapeHtml(tags || "波动")}</small>
+            </div>`;
+          })
+          .join("")
+      : `<div class="news-effect-row flat"><strong>暂无指定商品</strong><span>0%</span><small>区域价差主导</small></div>`;
+  }
   q("mapTitle").textContent = isMobileUi ? "换地方（点击站点移动一天）" : "杭州市全地点示意图（点击站点移动一天）";
   prefillRepayAll();
 
@@ -1792,24 +2320,32 @@ function render() {
     prefillTradeCounts({ buy: true });
     render();
   });
-  renderTable("invTable", game.inv, ["name", "buyPrice", "count"], selectedInv, (id) => {
-    selectedInv = id;
-    prefillTradeCounts({ sell: true });
-    render();
-  });
+  renderInventoryTable();
 
   const invSet = new Set(game.inv.map((x) => x.id));
   document.querySelectorAll("#marketTable tbody tr").forEach((tr, i) => {
     const m = game.market[i];
     if (m && invSet.has(m.id)) tr.classList.add("owned");
   });
+  if (marketRefreshPending && q("marketPanel")) {
+    const panel = q("marketPanel");
+    panel.classList.remove("market-refresh");
+    void panel.offsetWidth;
+    panel.classList.add("market-refresh");
+    if (marketRefreshTimer) clearTimeout(marketRefreshTimer);
+    marketRefreshTimer = setTimeout(() => {
+      panel.classList.remove("market-refresh");
+      marketRefreshTimer = null;
+    }, 680);
+    marketRefreshPending = false;
+  }
 
   renderMap();
+  renderPlaceDockGrid();
+  updateExpandGuideTip();
 
   const buyCap = selectedMarket != null ? maxBuyCount(selectedMarket) : 0;
   const sellCap = selectedInv != null ? maxSellCount(selectedInv) : 0;
-  if (q("buyMaxBtn")) q("buyMaxBtn").disabled = !(selectedMarket != null && buyCap > 0);
-  if (q("sellMaxBtn")) q("sellMaxBtn").disabled = !(selectedInv != null && sellCap > 0);
   if (q("tradeHint")) {
     const buyText = selectedMarket == null ? "先在黑市选商品" : `最多可买 ${buyCap}`;
     const sellText = selectedInv == null ? "先在持仓选商品" : `最多可卖 ${sellCap}`;
@@ -1819,10 +2355,19 @@ function render() {
   if (game.lastTrade?.type === "sell") {
     const t = game.lastTrade;
     const tradeKey = `${runId}:${t.goodsId}:${t.count}:${t.total}:${t.pnl}`;
+    maybeShowDebtGuideByProfit(tradeKey, Number(t.pnl || 0));
     if (lastCelebratedTradeKey !== tradeKey && Number(t.pnl || 0) >= 600000) {
       lastCelebratedTradeKey = tradeKey;
       fireProfit(t.pnl);
       pulseCashHeadline();
+    }
+  }
+  if (game.lastTrade?.type === "buy") {
+    const t = game.lastTrade;
+    const tradeKey = `${runId}:${t.goodsId}:${t.count}:${t.total}`;
+    if (t.count >= 100 && lastBuyHundredTradeKey !== tradeKey) {
+      lastBuyHundredTradeKey = tradeKey;
+      showSaveBanner(`你这笔买入已达 ${t.count} 件，注意仓位和现金节奏。`, 2600);
     }
   }
   q("logs").innerHTML = game.logs.slice().reverse().map((x) => `<div>${x}</div>`).join("");
@@ -1851,24 +2396,6 @@ function render() {
 }
 q("buyBtn").addEventListener("click", () => { if (selectedMarket == null) return; game.buy(selectedMarket, nval("buyCount", 1)); prefillTradeCounts({ buy: true }); render(); });
 q("sellBtn").addEventListener("click", () => { if (selectedInv == null) return; game.sell(selectedInv, nval("sellCount", 1)); prefillTradeCounts({ sell: true }); render(); });
-q("buyMaxBtn").addEventListener("click", () => {
-  if (selectedMarket == null) return;
-  const n = maxBuyCount(selectedMarket);
-  if (n <= 0) return;
-  q("buyCount").value = String(n);
-  game.buy(selectedMarket, n);
-  prefillTradeCounts({ buy: true });
-  render();
-});
-q("sellMaxBtn").addEventListener("click", () => {
-  if (selectedInv == null) return;
-  const n = maxSellCount(selectedInv);
-  if (n <= 0) return;
-  q("sellCount").value = String(n);
-  game.sell(selectedInv, n);
-  prefillTradeCounts({ sell: true });
-  render();
-});
 q("depositBtn").addEventListener("click", () => { game.deposit(nval("bankAmount")); render(); });
 q("withdrawBtn").addEventListener("click", () => { game.withdraw(nval("bankAmount")); render(); });
 q("repaySmartBtn").addEventListener("click", () => {
@@ -1876,6 +2403,7 @@ q("repaySmartBtn").addEventListener("click", () => {
   if (manual > 0) game.repay(manual);
   const auto = game.smartRepay();
   if (manual <= 0 && auto <= 0) game.addLog("当前现金不足以触发还债。", "input_error", { action: "smart_repay", reason: "insufficient_cash" });
+  if (manual > 0 || auto > 0 || game.debt <= 0) clearDebtGuide();
   render();
 });
 q("cureBtn").addEventListener("click", () => { game.cure(nval("curePoints", 1)); render(); });
@@ -1884,20 +2412,7 @@ q("wellnessBtn").addEventListener("click", () => { game.wellness(nval("blessAmou
 q("rentBtn").addEventListener("click", () => { openCapacityModal(); });
 q("quickExpandBtn").addEventListener("click", () => { openCapacityModal(); });
 q("rumorBtn").addEventListener("click", () => { game.buyRumor(); render(); });
-q("newGameBtnTop").addEventListener("click", () => {
-  game.newGame();
-  selectedMarket = null;
-  selectedInv = null;
-  runId += 1;
-  savedRunId = null;
-  saveFailedRunId = null;
-  runUploadConsent = null;
-  lastCelebratedTradeKey = null;
-  endPromptRunId = null;
-  startPromptShown = false;
-  closeEndModal();
-  render();
-});
+q("newGameBtnTop").addEventListener("click", () => { startNewGameFlow(); });
 q("eventOkBtn").addEventListener("click", () => { showNextModal(); });
 q("startConfirmBtn").addEventListener("click", () => { closeStartModal(); });
 q("startGoogleBtn").addEventListener("click", () => {
@@ -1921,7 +2436,7 @@ q("endSkipBtn").addEventListener("click", () => {
   setAuthMessage("你选择了本局不写入积分榜。");
 });
 q("accountBtnTop").addEventListener("click", () => { q("accountModal").classList.remove("hidden"); updateAccountUi(); });
-q("rankBtnTop").addEventListener("click", () => { q("rankModal").classList.remove("hidden"); loadLeaderboard(); });
+q("rankBtnTop").addEventListener("click", () => { q("rankModal").classList.remove("hidden"); loadLeaderboard(); closeMobileMenu(); });
 q("accountCloseBtn").addEventListener("click", () => { q("accountModal").classList.add("hidden"); });
 q("rankCloseBtn").addEventListener("click", () => { q("rankModal").classList.add("hidden"); });
 q("emailLoginBtn").addEventListener("click", () => { authWithEmail("login"); });
@@ -1930,15 +2445,49 @@ q("googleLoginBtn").addEventListener("click", () => { authWithProvider("google")
 q("saveNickBtn").addEventListener("click", () => { saveNickname(q("profileNameInput").value); });
 q("retrySaveBtn").addEventListener("click", () => { saveRunToCloud(true); });
 q("claimGuestBtn").addEventListener("click", () => { claimByTokenManual(); });
+q("copyClaimTokenBtn")?.addEventListener("click", () => { copyLatestClaimToken(); });
 q("signOutBtn").addEventListener("click", () => { signOut(); });
 q("refreshLeaderboardBtn").addEventListener("click", () => { loadLeaderboard(); });
+q("uiModeToggleBtn").addEventListener("click", () => {
+  forcedUiMode = isMobileUi ? "desktop" : "mobile";
+  saveUiModePref(forcedUiMode);
+  applyDeviceUiMode();
+  render();
+  showSaveBanner(`已切换到${isMobileUi ? "移动端" : "桌面端"}视图。`, 1800);
+});
+q("mobileMenuBtn")?.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  toggleMobileMenu();
+});
+q("menuNewGameBtn")?.addEventListener("click", () => { startNewGameFlow(); });
+q("menuRankBtn")?.addEventListener("click", () => {
+  q("rankModal")?.classList.remove("hidden");
+  closeMobileMenu();
+  loadLeaderboard();
+});
+q("menuDesktopBtn")?.addEventListener("click", () => {
+  forcedUiMode = "desktop";
+  saveUiModePref(forcedUiMode);
+  applyDeviceUiMode();
+  closeMobileMenu();
+  render();
+  showSaveBanner("已切到企业桌面端。", 1800);
+});
+document.addEventListener("click", (ev) => {
+  const card = q("mobileMenuCard");
+  const btn = q("mobileMenuBtn");
+  if (!card || !btn || card.classList.contains("hidden")) return;
+  const target = ev.target;
+  if (target instanceof Node && !card.contains(target) && !btn.contains(target)) closeMobileMenu();
+});
 q("capacityTargetInput").addEventListener("input", () => { renderCapacityPlan(q("capacityTargetInput").value); });
 q("capacityCancelBtn").addEventListener("click", () => { closeCapacityModal(); });
 q("capacityConfirmBtn").addEventListener("click", () => {
-  const target = normalizeCapacityTarget(nval("capacityTargetInput", MAX_CAPACITY), game.coat);
+  const expandGain = Math.max(CAPACITY_STEP, nval("capacityTargetInput", CAPACITY_STEP));
+  const target = normalizeCapacityTarget(game.coat + expandGain, game.coat);
   const result = game.rentHouseTo(target);
   if (!result.ok && result.reason === "insufficient_cash" && result.affordableTarget > game.coat) {
-    renderCapacityPlan(result.affordableTarget);
+    renderCapacityPlan(result.affordableTarget - game.coat);
     showSaveBanner(`当前现金不足，已为你定位可升级到 ${result.affordableTarget}。`, 3200, "error");
     render();
     return;
@@ -1951,7 +2500,24 @@ document.querySelectorAll(".mobile-tab").forEach((btn) => {
     applyMobileView(btn.dataset.mobileTab || "trade");
   });
 });
+q("miniDebtCard").addEventListener("click", () => { clearDebtGuide({ openRepay: true }); });
+q("debtStatCard").addEventListener("click", () => { clearDebtGuide({ openRepay: true }); });
+q("debtGuideTipBtn").addEventListener("click", () => { clearDebtGuide({ openRepay: true }); });
+q("debtGuideTipClose").addEventListener("click", () => { clearDebtGuide(); });
+q("expandGuideTipBtn").addEventListener("click", () => {
+  hideExpandGuideTip();
+  openCapacityModal();
+});
+q("expandGuideTipClose").addEventListener("click", () => {
+  expandGuideDismissed = true;
+  hideExpandGuideTip();
+});
+q("repayModalCancel").addEventListener("click", () => { closeRepayModal(); });
+q("repayModalAll").addEventListener("click", () => { repayFromModal(0, { all: true }); });
+q("repayModalConfirm").addEventListener("click", () => { repayFromModal(nval("repayModalAmount", 0)); });
+loadUiModePref();
 applyDeviceUiMode();
+applyAuthUiVisibility();
 window.addEventListener("resize", applyDeviceUiMode);
 window.addEventListener("orientationchange", applyDeviceUiMode);
 render();

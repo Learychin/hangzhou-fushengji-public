@@ -72,6 +72,42 @@ h2 {
   display: flex;
   align-items: center;
   gap: 8px;
+  position: relative;
+}
+.mobile-top-cash {
+  display: none;
+}
+.mobile-menu-btn,
+.mobile-menu-card {
+  display: none;
+}
+.mobile-menu-card {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 178px;
+  padding: 8px;
+  border: 1px solid #d3d9e8;
+  border-radius: 10px;
+  background: #f9fbff;
+  box-shadow: 0 8px 20px rgba(25, 31, 44, 0.14);
+  z-index: 50;
+}
+.mobile-menu-card button {
+  width: 100%;
+  text-align: left;
+  margin-top: 6px;
+  padding: 6px 8px;
+}
+.mobile-menu-online {
+  font-size: 12px;
+  color: #5f6676;
+  padding: 2px 2px 4px;
+}
+body.hide-auth-ui #accountBtnTop,
+body.hide-auth-ui #accountModal,
+body.hide-auth-ui .start-auth-actions {
+  display: none !important;
 }
 .online-status {
   display: flex;
@@ -212,6 +248,23 @@ h2 {
   align-items: center;
   gap: 8px;
 }
+.loc-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #cad2e5;
+  background: #eff3fb;
+  color: #4b566d;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+}
+.market-loc-active .loc-chip {
+  border-color: #b99b4f;
+  background: #f4ebd5;
+  color: #5e4b20;
+}
 .middle { display: grid; gap: 8px; align-content: start; }
 .middle hr { border: 0; border-top: 1px solid var(--line); width: 100%; }
 .panel-note {
@@ -262,6 +315,16 @@ th {
 tr.selected { background: rgba(138, 174, 232, 0.28); }
 tr.owned { background: rgba(155, 199, 171, 0.25); }
 tr:hover { background: rgba(138, 174, 232, 0.16); cursor: pointer; }
+.market-refresh #marketTable tbody tr {
+  transform-origin: top;
+  animation: marketRowRefresh 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--row-index, 0) * 28ms);
+}
+@keyframes marketRowRefresh {
+  0% { transform: perspective(380px) rotateX(-68deg) scaleY(0.9); opacity: 0.2; filter: blur(1px); }
+  60% { transform: perspective(380px) rotateX(14deg) scaleY(1.02); opacity: 0.95; filter: blur(0); }
+  100% { transform: perspective(380px) rotateX(0deg) scaleY(1); opacity: 1; }
+}
 
 input {
   width: 100%;
@@ -311,6 +374,13 @@ button:disabled {
   font-size: 18px;
   line-height: 1.1;
   font-family: "SF Mono", "Menlo", "Monaco", monospace;
+}
+#debtStatCard {
+  cursor: pointer;
+}
+.debt-guide-ready {
+  border-color: #d6a248 !important;
+  background: linear-gradient(180deg, #fff7e8, #f8efd8) !important;
 }
 .ops {
   display: grid;
@@ -520,16 +590,22 @@ body.mobile-ui .topbar-brand {
   min-width: 0;
 }
 body.mobile-ui h1 {
-  font-size: 16px;
+  display: none;
+}
+body.mobile-ui .mobile-top-cash {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
   letter-spacing: 0.02em;
+  color: #586173;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.1;
 }
 body.mobile-ui #dayText {
-  margin-top: 2px;
-  font-size: 11px;
+  margin-top: 0;
+  font-size: 12px;
+  font-weight: 700;
   letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
@@ -544,25 +620,10 @@ body.mobile-ui .top-actions {
   min-width: 0;
 }
 body.mobile-ui .online-status {
-  min-height: 24px;
-  padding: 2px 6px;
-  font-size: 10px;
-  min-width: 0;
-}
-body.mobile-ui .online-avatar {
-  width: 16px;
-  height: 16px;
-  border-width: 1px;
-}
-body.mobile-ui .online-avatar + .online-avatar {
-  margin-left: -2px;
+  display: none;
 }
 body.mobile-ui .score {
-  font-size: 12px;
-  white-space: nowrap;
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: none;
 }
 body.mobile-ui .icon-btn,
 body.mobile-ui #newGameBtnTop {
@@ -576,6 +637,24 @@ body.mobile-ui .avatar-btn {
   width: 26px;
   height: 26px;
   min-width: 26px;
+}
+body.mobile-ui #newGameBtnTop,
+body.mobile-ui #rankBtnTop,
+body.mobile-ui #uiModeToggleBtn {
+  display: none;
+}
+body.mobile-ui .mobile-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 26px;
+  padding: 2px 8px;
+  font-size: 15px;
+  line-height: 1;
+}
+body.mobile-ui .mobile-menu-card {
+  display: block;
 }
 body.mobile-ui .account-avatar {
   width: 22px;
@@ -607,14 +686,14 @@ body.mobile-ui .mobile-tabs {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 4px;
   padding: 4px 0 6px;
   background: linear-gradient(135deg, var(--bg1), var(--bg2));
 }
 body.mobile-ui .mobile-status-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
   align-items: stretch;
   padding: 6px;
@@ -642,9 +721,32 @@ body.mobile-ui .mini-stat strong {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+body.mobile-ui .mini-stat-btn {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid #d6dbe8;
+  background: #eceff6;
+  padding: 4px 6px;
+}
+body.mobile-ui .mini-stat-btn:hover {
+  background: #e6ebf6;
+}
+.debt-guide-glow {
+  border-color: #e2a33f !important;
+  box-shadow: 0 0 0 0 rgba(226, 163, 63, 0.5);
+  animation: debtGlowPulse 1.2s ease-in-out infinite;
+}
+@keyframes debtGlowPulse {
+  0% { box-shadow: 0 0 0 0 rgba(226, 163, 63, 0.48); }
+  70% { box-shadow: 0 0 0 10px rgba(226, 163, 63, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(226, 163, 63, 0); }
+}
 body.mobile-ui .mini-expand-btn {
   min-height: 100%;
-  min-width: 54px;
+  min-width: 0;
   padding: 4px 6px;
   font-size: 12px;
   font-weight: 700;
@@ -681,10 +783,10 @@ body.mobile-ui #tradeSection .panel-head {
   align-items: center;
 }
 body.mobile-ui #tradeSection .panel-head button {
-  min-height: 28px;
-  min-width: 84px;
-  font-size: 11px;
-  padding: 3px 6px;
+  min-height: 24px;
+  min-width: 66px;
+  font-size: 10px;
+  padding: 2px 6px;
 }
 body.mobile-ui .panel-note {
   font-size: 10px;
@@ -837,32 +939,19 @@ body.mobile-ui.mobile-view-trade #invPanel .table-scroll {
 body.mobile-ui.mobile-view-trade #opsPanel {
   align-self: start;
 }
-body.mobile-ui.mobile-view-map #tradeSection,
-body.mobile-ui.mobile-view-map #statusPanel,
-body.mobile-ui.mobile-view-map #logsSection {
-  display: none;
+body.mobile-ui.mobile-view-trade #opsPanel .quick-trade-row {
+  grid-template-columns: 1fr;
 }
-
 @media (max-width: 420px) {
-  body.mobile-ui .mobile-status-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  body.mobile-ui .mini-stat strong,
   body.mobile-ui .mini-expand-btn {
-    grid-column: 1 / -1;
-    min-height: 30px;
-  }
-  body.mobile-ui.mobile-view-trade #tradeSection {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "market"
-      "inv"
-      "ops";
+    font-size: 11px;
   }
   body.mobile-ui.mobile-view-trade #marketPanel .table-scroll {
-    max-height: 30vh;
+    max-height: 52vh;
   }
   body.mobile-ui.mobile-view-trade #invPanel .table-scroll {
-    max-height: 18vh;
+    max-height: 22vh;
   }
 }
 body.mobile-ui.mobile-view-status #tradeSection,
@@ -871,6 +960,39 @@ body.mobile-ui.mobile-view-status #mapPanel {
 }
 body.mobile-ui.mobile-view-status #logsSection {
   display: block;
+}
+body.mobile-ui #startModal .summary-card {
+  width: min(360px, calc(100vw - 18px));
+  max-height: calc(100dvh - 22px);
+  overflow: hidden;
+  padding: 10px;
+}
+body.mobile-ui #startModal .summary-card h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+}
+body.mobile-ui #startModal .modal-body.start-brief {
+  margin-bottom: 8px;
+  line-height: 1.35;
+  white-space: normal;
+}
+body.mobile-ui #startModal .modal-body.start-brief p {
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+body.mobile-ui #startModal .modal-actions.start-auth-actions {
+  margin-bottom: 6px;
+  gap: 6px;
+}
+body.mobile-ui #startModal .modal-actions.start-auth-actions button {
+  min-height: 30px;
+  font-size: 11px;
+  padding: 4px 6px;
+}
+body.mobile-ui #startConfirmBtn {
+  min-height: 32px;
+  font-size: 12px;
+  padding: 5px 8px;
 }
 .logs div {
   padding: 6px 8px;
@@ -887,6 +1009,169 @@ body.mobile-ui.mobile-view-status #logsSection {
   place-items: center;
   z-index: 100;
 }
+.guide-tip {
+  position: fixed;
+  right: 14px;
+  bottom: 16px;
+  z-index: 140;
+  width: min(340px, calc(100vw - 18px));
+  border: 1px solid #d9bc7f;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff8eb, #f5ecda);
+  box-shadow: 0 12px 28px rgba(32, 38, 52, 0.22);
+  padding: 10px 10px 8px;
+  animation: guidePopIn 200ms ease-out;
+}
+.guide-tip p {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  line-height: 1.42;
+  color: #44331a;
+}
+.guide-tip-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.guide-tip-actions button {
+  min-height: 28px;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+@keyframes guidePopIn {
+  0% { transform: translateY(8px) scale(0.98); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+.place-dock {
+  margin-bottom: 8px;
+}
+.place-dock-head {
+  align-items: baseline;
+}
+.place-dock-head .panel-note {
+  margin: 0;
+  font-size: 11px;
+}
+.place-dock-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+.place-district-block {
+  border: 1px solid #d9deea;
+  border-radius: 10px;
+  padding: 5px;
+}
+.place-district-title {
+  margin: 0 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #4f5b70;
+}
+.place-district-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.place-dock-item {
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid #cfd6e6;
+  background: #f3f7ff;
+  padding: 3px 6px;
+  text-align: left;
+  display: grid;
+  align-content: center;
+  gap: 1px;
+}
+.place-dock-item span {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.place-dock-item small {
+  font-size: 10px;
+  color: #5f6777;
+}
+.place-dock-item.active {
+  border-color: #bf9544;
+  background: #f6ead1;
+}
+.inv-summary {
+  display: grid;
+  gap: 3px;
+  margin: 0 0 6px;
+  padding: 6px 8px;
+  border: 1px solid #d6dbe8;
+  border-radius: 8px;
+  background: #f8faff;
+  font-size: 12px;
+}
+.pnl-up {
+  color: #1f7a43;
+  font-weight: 700;
+}
+.pnl-down {
+  color: #9a2d2d;
+  font-weight: 700;
+}
+.market-news {
+  margin-bottom: 8px;
+}
+.news-headline {
+  margin: 2px 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #273246;
+}
+.news-effects {
+  display: grid;
+  gap: 5px;
+  margin-top: 6px;
+}
+.news-effect-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid #d8dce7;
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: #f8faff;
+}
+.news-effect-row strong {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.news-effect-row span {
+  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-size: 12px;
+}
+.news-effect-row small {
+  font-size: 10px;
+  color: #6a7387;
+}
+.news-effect-row.up {
+  border-color: #a5d0b5;
+  background: #eef8f1;
+}
+.news-effect-row.up span {
+  color: #1f7a43;
+}
+.news-effect-row.down {
+  border-color: #e2b4b4;
+  background: #fff1f1;
+}
+.news-effect-row.down span {
+  color: #9a2d2d;
+}
+.news-effect-row.flat span {
+  color: #63708a;
+}
 .modal.hidden { display: none; }
 .modal-card {
   width: min(640px, calc(100vw - 24px));
@@ -896,6 +1181,69 @@ body.mobile-ui.mobile-view-status #logsSection {
   border: 1px solid #d0d0d6;
   background: #f7f7fa;
   padding: 14px;
+}
+body.mobile-ui .place-dock {
+  padding: 7px;
+}
+body.mobile-ui .place-dock-grid {
+  grid-template-columns: 1fr;
+  gap: 5px;
+}
+body.mobile-ui .place-district-items {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+body.mobile-ui .place-dock-item {
+  min-height: 44px;
+  padding: 3px 5px;
+}
+body.mobile-ui .place-dock-item span {
+  font-size: 11px;
+}
+body.mobile-ui .place-dock-item small {
+  font-size: 9px;
+}
+body.mobile-ui .inv-summary {
+  font-size: 11px;
+  gap: 2px;
+  padding: 5px 6px;
+}
+body.mobile-ui .market-news {
+  padding: 7px;
+}
+body.mobile-ui .news-headline {
+  font-size: 12px;
+}
+body.mobile-ui .news-effect-row {
+  gap: 6px;
+  padding: 4px 6px;
+}
+body.mobile-ui .news-effect-row strong,
+body.mobile-ui .news-effect-row span {
+  font-size: 11px;
+}
+body.mobile-ui .news-effect-row small {
+  font-size: 9px;
+}
+body.mobile-ui .guide-tip {
+  right: 8px;
+  left: 8px;
+  bottom: 8px;
+  width: auto;
+  padding: 8px 8px 6px;
+}
+body.mobile-ui .guide-tip p {
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+body.mobile-ui .guide-tip-actions button {
+  min-height: 26px;
+  font-size: 11px;
+  padding: 3px 7px;
+}
+@media (max-width: 420px) {
+  body.mobile-ui .place-dock-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 .modal-card h3 { margin: 0 0 8px 0; }
 .modal-head {
@@ -951,6 +1299,96 @@ body.mobile-ui.mobile-view-status #logsSection {
   color: #314059;
 }
 
+#debtStatCard.debt-guide-ready,
+#miniDebtCard.debt-guide-ready {
+  border-color: #c58a2b !important;
+  background: linear-gradient(180deg, #fff7e8, #f8efd8) !important;
+}
+
+#repayModal .repay-card {
+  width: min(560px, calc(100vw - 18px));
+  max-height: min(62dvh, 520px);
+  padding: 10px 12px 10px;
+}
+
+#repayModal h3 {
+  margin: 0 0 6px 0;
+  font-size: 30px;
+  line-height: 1.04;
+  letter-spacing: 0.01em;
+}
+
+#repayModal .modal-body {
+  white-space: normal;
+  line-height: 1.28;
+  margin-bottom: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+#repayModalInfo {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: #2d3548;
+}
+
+#repayModal .repay-label {
+  margin: 0;
+  font-size: 15px;
+  color: #4d5568;
+}
+
+#repayModalAmount {
+  margin-top: 4px;
+  font-size: 30px;
+  line-height: 1.08;
+  padding: 7px 10px;
+  border-radius: 10px;
+}
+
+#repayModal .repay-actions {
+  margin-top: 2px;
+  gap: 8px;
+}
+
+#repayModal .repay-actions button {
+  min-height: 40px;
+  font-size: 24px;
+  padding: 4px 10px;
+}
+
+body.mobile-ui #repayModal .repay-card {
+  width: min(420px, calc(100vw - 12px));
+  max-height: min(56dvh, 420px);
+  padding: 8px 10px 8px;
+}
+
+body.mobile-ui #repayModal h3 {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+body.mobile-ui #repayModalInfo {
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+body.mobile-ui #repayModal .repay-label {
+  font-size: 14px;
+}
+
+body.mobile-ui #repayModalAmount {
+  font-size: 24px;
+  padding: 5px 8px;
+}
+
+body.mobile-ui #repayModal .repay-actions button {
+  min-height: 34px;
+  font-size: 17px;
+  padding: 4px 8px;
+}
+
 .account-card,
 .leaderboard-card {
   width: min(560px, calc(100vw - 24px));
@@ -996,6 +1434,15 @@ body.mobile-ui.mobile-view-status #logsSection {
 
 #userPanel .account-actions {
   grid-template-columns: repeat(3, minmax(90px, 1fr));
+}
+.claim-copy-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.claim-copy-row input {
+  margin-top: 0;
 }
 
 .user-row {
