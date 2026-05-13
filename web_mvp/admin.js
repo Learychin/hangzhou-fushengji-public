@@ -3,6 +3,9 @@
 const state = { client: null };
 let adminVerified = false;
 let selectedRunId = null;
+let currentRunRows = [];
+const selectedRunIds = new Set();
+const selectedRunRows = new Map();
 const PLATFORM_INFO = [
   {
     key: "github",
@@ -71,6 +74,145 @@ function esc(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+function mdEsc(value) {
+  return String(value ?? "").replaceAll("\r\n", "\n");
+}
+function safeFileName(name) {
+  const base = String(name ?? "run")
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return (base || "run").slice(0, 96);
+}
+function compactDate(value) {
+  if (!value) return "unknown";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "unknown";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+function endedReasonLabel(code) {
+  if (code === "completed") return "45天结束";
+  if (code === "death") return "健康归零";
+  if (code === "reputation") return "名声崩盘";
+  return code || "-";
+}
+function selectedRunsList() {
+  return [...selectedRunIds]
+    .map((id) => selectedRunRows.get(String(id)))
+    .filter(Boolean);
+}
+function updateRunSelectionUi() {
+  const info = q("runSelectionInfo");
+  const selectedCount = selectedRunIds.size;
+  if (info) info.textContent = `已选 ${selectedCount} 局`;
+  const downloadBtn = q("runDownloadMdBtn");
+  if (downloadBtn) downloadBtn.disabled = selectedCount === 0;
+  const headerCheckbox = q("runsSelectAllCheckbox");
+  if (!headerCheckbox) return;
+  const rowIds = currentRunRows.map((row) => String(row.id));
+  const selectedOnPage = rowIds.filter((id) => selectedRunIds.has(id)).length;
+  headerCheckbox.checked = rowIds.length > 0 && selectedOnPage === rowIds.length;
+  headerCheckbox.indeterminate = selectedOnPage > 0 && selectedOnPage < rowIds.length;
+}
+function setSelectionForCurrentPage(checked) {
+  for (const row of currentRunRows) {
+    const id = String(row.id);
+    if (checked) {
+      selectedRunIds.add(id);
+      selectedRunRows.set(id, row);
+    } else {
+      selectedRunIds.delete(id);
+      selectedRunRows.delete(id);
+    }
+  }
+  renderRuns(currentRunRows);
+}
+function clearRunSelection() {
+  selectedRunIds.clear();
+  selectedRunRows.clear();
+  renderRuns(currentRunRows);
+}
+function triggerBlobDownload(filename, blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function buildRunMarkdown(run, events) {
+  const createdAt = fmtDate(run.created_at);
+  const player = run.display_name || run.email || "匿名玩家";
+  const lines = [
+    `# 杭州浮生记对局记录`,
+    ``,
+    `- 对局ID：${run.id}`,
+    `- 玩家：${player}`,
+    `- 开局时间：${createdAt}`,
+    `- 分数：${cny(run.score)}`,
+    `- 现金：${cny(run.cash)}`,
+    `- 债务：${cny(run.debt)}`,
+    `- 天数：${run.days_used}`,
+    `- 结束原因：${endedReasonLabel(run.ended_reason)}`,
+    `- 事件总数：${events.length}`,
+    ``,
+    `## 事件流`,
+  ];
+  if (!events.length) {
+    lines.push(``, `暂无事件记录。`);
+    return lines.join("\n");
+  }
+  for (const event of events) {
+    const eventTime = fmtDate(event.created_at);
+    lines.push(`- [#${event.event_index}] 第${event.day}天 · ${event.event_type} · ${eventTime}`);
+    lines.push(`  ${mdEsc(event.message)}`);
+  }
+  return lines.join("\n");
+}
+async function downloadSelectedRunsAsMarkdown() {
+  const runs = selectedRunsList();
+  if (!runs.length) {
+    q("adminStatus").textContent = "请先选择至少一局对局记录。";
+    return;
+  }
+  const downloadBtn = q("runDownloadMdBtn");
+  const prevText = downloadBtn.textContent;
+  downloadBtn.disabled = true;
+  downloadBtn.textContent = "正在打包...";
+  q("adminStatus").textContent = `准备导出 ${runs.length} 局...`;
+  try {
+    const zip = window.JSZip ? new window.JSZip() : null;
+    for (let i = 0; i < runs.length; i++) {
+      const run = runs[i];
+      q("adminStatus").textContent = `导出中 ${i + 1}/${runs.length}：${run.display_name || run.email || run.id}`;
+      const events = await callRpc("admin_events", { p_run_id: run.id });
+      const content = buildRunMarkdown(run, events || []);
+      const fileName = `${compactDate(run.created_at)}_${safeFileName(run.display_name || run.email || "player")}_${safeFileName(run.id)}.md`;
+      if (zip) {
+        zip.file(fileName, content);
+      } else {
+        triggerBlobDownload(fileName, new Blob([content], { type: "text/markdown;charset=utf-8" }));
+      }
+    }
+    if (zip) {
+      const blob = await zip.generateAsync({ type: "blob" });
+      const packName = `hangzhou-fushengji-runs-${compactDate(new Date().toISOString())}.zip`;
+      triggerBlobDownload(packName, blob);
+      q("adminStatus").textContent = `导出完成：已下载 ${runs.length} 个 .md（zip 包）。`;
+    } else {
+      q("adminStatus").textContent = `导出完成：已触发 ${runs.length} 个 .md 下载。`;
+    }
+  } catch (error) {
+    q("adminStatus").textContent = `导出失败：${error.message || error}`;
+  } finally {
+    downloadBtn.textContent = prevText;
+    updateRunSelectionUi();
+  }
+}
 function loadSupabaseSdk() {
   if (window.supabase?.createClient) return Promise.resolve();
   return new Promise((resolve, reject) => {
@@ -121,9 +263,11 @@ function renderUsers(rows) {
   `).join("");
 }
 function renderRuns(rows) {
+  currentRunRows = rows || [];
   q("runsHint").textContent = `${rows.length} 条`;
   q("runsTable").querySelector("tbody").innerHTML = rows.map((row) => `
     <tr>
+      <td><input class="run-select-checkbox" type="checkbox" data-run-id="${esc(row.id)}" ${selectedRunIds.has(String(row.id)) ? "checked" : ""} /></td>
       <td>${esc(fmtDate(row.created_at))}</td>
       <td>${esc(row.display_name || row.email || "-")}</td>
       <td>${esc(cny(row.score))}</td>
@@ -135,6 +279,21 @@ function renderRuns(rows) {
       <td><button class="run-action-btn" data-run-id="${esc(row.id)}" data-run-name="${esc(row.display_name || row.email || "-")}" data-run-time="${esc(fmtDate(row.created_at))}">查看事件</button></td>
     </tr>
   `).join("");
+  const runMap = new Map(rows.map((row) => [String(row.id), row]));
+  q("runsTable").querySelectorAll(".run-select-checkbox").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      const id = String(checkbox.dataset.runId || "");
+      if (!id) return;
+      if (checkbox.checked) {
+        selectedRunIds.add(id);
+        selectedRunRows.set(id, runMap.get(id));
+      } else {
+        selectedRunIds.delete(id);
+        selectedRunRows.delete(id);
+      }
+      updateRunSelectionUi();
+    });
+  });
   q("runsTable").querySelectorAll(".run-action-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       selectedRunId = btn.dataset.runId || null;
@@ -144,6 +303,7 @@ function renderRuns(rows) {
       loadEventsForSelectedRun();
     });
   });
+  updateRunSelectionUi();
 }
 function renderEventSummary(rows) {
   q("eventSummaryHint").textContent = `${rows.length} 类`;
@@ -363,4 +523,8 @@ async function init() {
 
 q("refreshBtn").addEventListener("click", () => { refresh(); });
 q("adminRetryBtn").addEventListener("click", () => { init(); });
+q("runSelectAllBtn").addEventListener("click", () => { setSelectionForCurrentPage(true); });
+q("runClearSelectionBtn").addEventListener("click", () => { clearRunSelection(); });
+q("runsSelectAllCheckbox").addEventListener("change", (event) => { setSelectionForCurrentPage(event.target.checked); });
+q("runDownloadMdBtn").addEventListener("click", () => { downloadSelectedRunsAsMarkdown(); });
 init();

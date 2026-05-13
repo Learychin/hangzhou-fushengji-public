@@ -49,13 +49,22 @@
 
       <section class="panel">
         <div class="panel-head">
-          <h2>对局</h2>
-          <span id="runsHint"></span>
+          <div class="panel-head-main">
+            <h2>对局</h2>
+            <span id="runsHint"></span>
+          </div>
+          <div class="run-batch-tools">
+            <span id="runSelectionInfo">已选 0 局</span>
+            <button id="runSelectAllBtn" type="button">全选当前页</button>
+            <button id="runClearSelectionBtn" type="button">清空选择</button>
+            <button id="runDownloadMdBtn" type="button">批量下载 .md</button>
+          </div>
         </div>
         <div class="table-wrap">
           <table id="runsTable">
             <thead>
               <tr>
+                <th><input id="runsSelectAllCheckbox" type="checkbox" aria-label="全选当前页对局" /></th>
                 <th>时间</th><th>玩家</th><th>分数</th><th>现金</th><th>债务</th><th>天数</th><th>原因</th><th>事件</th><th>操作</th>
               </tr>
             </thead>
@@ -103,6 +112,7 @@
     </section>
 
     <script src="./config.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="./admin.js"></script>
   </body>
 </html>

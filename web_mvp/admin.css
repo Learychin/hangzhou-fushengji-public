@@ -110,12 +110,32 @@ main {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
 }
 .panel-head span {
   color: var(--muted);
   font-size: 12px;
+}
+.panel-head-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.run-batch-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.run-batch-tools button {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+#runSelectionInfo {
+  font-size: 12px;
+  color: #546078;
 }
 .table-wrap { overflow: auto; }
 table {
@@ -133,6 +153,11 @@ th {
   color: var(--muted);
   font-size: 12px;
   letter-spacing: 0.04em;
+}
+#runsTable th:first-child,
+#runsTable td:first-child {
+  width: 44px;
+  text-align: center;
 }
 .events-list {
   display: grid;
