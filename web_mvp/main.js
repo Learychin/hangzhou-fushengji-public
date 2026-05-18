@@ -717,6 +717,19 @@ class GameEngine {
     this.inv = [];
     this.totalItems = 0;
   }
+
+  clearSameDayLocks() {
+    for (const item of this.inv) {
+      if (item && item.sameDayLocked) item.sameDayLocked = 0;
+    }
+  }
+
+  getSellableCount(item) {
+    if (!item) return 0;
+    const locked = Math.max(0, Math.min(item.sameDayLocked || 0, item.count || 0));
+    return Math.max(0, (item.count || 0) - locked);
+  }
+
   buildFinalSettlementMarket() {
     const existing = new Map(this.market.map((m) => [m.id, m.price]));
     this.market = this.goods.map((g) => {
@@ -756,6 +769,7 @@ class GameEngine {
     }
     if (this.gameOver) return;
     this.timeLeft -= 1;
+    this.clearSameDayLocks();
     this.addLog(this.dayText, "travel", {
       location_id: locIdx,
       location: this.cityLabels[locIdx - 1],
@@ -784,16 +798,17 @@ class GameEngine {
     const totalCost = n * unitPrice;
     this.cash -= totalCost;
     this.totalItems += n * (weight || 1);
+    const discount = n >= 80 ? 12 : n >= 50 ? 8 : n >= 20 ? 3 : 0;
     const i = this.inv.findIndex(x => x.id === goodsId);
     if (i >= 0) {
       const old = this.inv[i];
       const totalCnt = old.count + n;
       old.buyPrice = Math.floor((old.buyPrice * old.count + unitPrice * n) / totalCnt);
       old.count = totalCnt;
+      old.sameDayLocked = Math.max(0, old.sameDayLocked || 0) + (discount > 0 ? n : 0);
     } else {
-      this.inv.unshift({ id: goodsId, name: mk.name, buyPrice: unitPrice, count: n });
+      this.inv.unshift({ id: goodsId, name: mk.name, buyPrice: unitPrice, count: n, sameDayLocked: discount > 0 ? n : 0 });
     }
-    const discount = n >= 80 ? 12 : n >= 50 ? 8 : n >= 20 ? 3 : 0;
     const suffix = discount ? `（批发折扣 ${discount}%）` : "";
     this.addLog(`买入 ${mk.name} x${n}${suffix}`, "trade", {
       side: "buy",
@@ -816,9 +831,21 @@ class GameEngine {
     if (invIdx < 0) return this.addLog("请先选择出租屋里的商品。", "input_error", { action: "sell", reason: "missing_inventory_goods" });
     const mk = this.market.find(x => x.id === goodsId);
     if (!mk) return this.addLog("当前黑市无人收这个商品。", "input_error", { action: "sell", reason: "goods_not_in_market", goods_id: goodsId });
-    const n = Math.max(1, Math.min(count, this.inv[invIdx].count));
+    const invItem = this.inv[invIdx];
+    const sellable = this.getSellableCount(invItem);
+    if (sellable <= 0) {
+      return this.addLog("该商品今天刚批发进货，需隔天才能卖出。", "input_error", {
+        action: "sell",
+        reason: "same_day_discount_lock",
+        goods_id: goodsId,
+      });
+    }
+    const n = Math.max(1, Math.min(count, sellable));
     const avgCost = this.inv[invIdx].buyPrice || 0;
     this.inv[invIdx].count -= n;
+    if (this.inv[invIdx].sameDayLocked) {
+      this.inv[invIdx].sameDayLocked = Math.max(0, Math.min(this.inv[invIdx].sameDayLocked, this.inv[invIdx].count));
+    }
     if (this.inv[invIdx].count === 0) this.inv.splice(invIdx, 1);
     this.cash += n * mk.price;
     this.totalItems -= n * (mk.weight || 1);
@@ -1117,37 +1144,16 @@ function renderPlaceDockGrid() {
   const grid = q("placeDockGrid");
   if (!grid) return;
   grid.innerHTML = "";
-  const order = ["xihu", "shangcheng", "gongshu", "binjiang", "yuhang", "xiaoshan", "qiantang"];
-  const grouped = {};
-  for (const key of order) grouped[key] = [];
   game.cityLabels.forEach((name, idx) => {
+    const loc = idx + 1;
     const district = game.locationDistricts[idx] || "shangcheng";
-    if (!grouped[district]) grouped[district] = [];
-    grouped[district].push({ idx, name });
+    const b = document.createElement("button");
+    b.className = `place-dock-item district-${district}`;
+    if (game.currentLoc === loc) b.classList.add("active");
+    b.innerHTML = `<span>${name}</span>`;
+    b.addEventListener("click", () => { travelToLocation(loc); });
+    grid.appendChild(b);
   });
-  for (const district of order) {
-    const spots = grouped[district];
-    if (!spots || spots.length === 0) continue;
-    const block = document.createElement("section");
-    block.className = `place-district-block district-${district}`;
-    const title = document.createElement("h3");
-    title.className = "place-district-title";
-    title.textContent = game.districtLabels[district] || "城区";
-    const wrap = document.createElement("div");
-    wrap.className = "place-district-items";
-    for (const spot of spots) {
-      const loc = spot.idx + 1;
-      const b = document.createElement("button");
-      b.className = `place-dock-item district-${district}`;
-      if (game.currentLoc === loc) b.classList.add("active");
-      b.innerHTML = `<span>${spot.name}</span>`;
-      b.addEventListener("click", () => { travelToLocation(loc); });
-      wrap.appendChild(b);
-    }
-    block.appendChild(title);
-    block.appendChild(wrap);
-    grid.appendChild(block);
-  }
 }
 function travelToLocation(locIdx) {
   const prevLoc = game.currentLoc;
@@ -2076,7 +2082,11 @@ async function initCloud() {
   });
 }
 function maxBuyCount(goodsId) { const mk = game.market.find((x) => x.id === goodsId); if (!mk) return 0; return Math.max(0, Math.min(Math.floor(game.cash / mk.price), Math.floor((game.coat - game.totalItems) / (mk.weight || 1)))); }
-function maxSellCount(goodsId) { const inv = game.inv.find((x) => x.id === goodsId); if (!inv) return 0; return Math.max(0, inv.count); }
+function maxSellCount(goodsId) {
+  const inv = game.inv.find((x) => x.id === goodsId);
+  if (!inv) return 0;
+  return Math.max(0, game.getSellableCount(inv));
+}
 function prefillTradeCounts(opts = {}) { const { buy = false, sell = false } = opts; if (buy && selectedMarket != null) q("buyCount").value = String(Math.max(1, maxBuyCount(selectedMarket))); if (sell && selectedInv != null) q("sellCount").value = String(Math.max(1, maxSellCount(selectedInv))); }
 function prefillRepayAll() { q("repayAmount").value = String(Math.max(0, Math.min(game.cash, game.debt))); }
 function showNextModal() { const modal = q("eventModal"); const body = q("eventBody"); if (modalQueue.length === 0) { modal.classList.add("hidden"); body.textContent = ""; return; } body.textContent = modalQueue.shift(); modal.classList.remove("hidden"); }
