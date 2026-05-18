@@ -720,14 +720,15 @@ class GameEngine {
 
   clearSameDayLocks() {
     for (const item of this.inv) {
-      if (item && item.sameDayLocked) item.sameDayLocked = 0;
+      if (!item) continue;
+      if (item.sameDayLocked) item.sameDayLocked = 0;
+      if (item.sameDayLockedCost) item.sameDayLockedCost = 0;
     }
   }
 
   getSellableCount(item) {
     if (!item) return 0;
-    const locked = Math.max(0, Math.min(item.sameDayLocked || 0, item.count || 0));
-    return Math.max(0, (item.count || 0) - locked);
+    return Math.max(0, item.count || 0);
   }
 
   buildFinalSettlementMarket() {
@@ -806,8 +807,16 @@ class GameEngine {
       old.buyPrice = Math.floor((old.buyPrice * old.count + unitPrice * n) / totalCnt);
       old.count = totalCnt;
       old.sameDayLocked = Math.max(0, old.sameDayLocked || 0) + (discount > 0 ? n : 0);
+      old.sameDayLockedCost = Math.max(0, old.sameDayLockedCost || 0) + (discount > 0 ? (unitPrice * n) : 0);
     } else {
-      this.inv.unshift({ id: goodsId, name: mk.name, buyPrice: unitPrice, count: n, sameDayLocked: discount > 0 ? n : 0 });
+      this.inv.unshift({
+        id: goodsId,
+        name: mk.name,
+        buyPrice: unitPrice,
+        count: n,
+        sameDayLocked: discount > 0 ? n : 0,
+        sameDayLockedCost: discount > 0 ? (unitPrice * n) : 0,
+      });
     }
     const suffix = discount ? `（批发折扣 ${discount}%）` : "";
     this.addLog(`买入 ${mk.name} x${n}${suffix}`, "trade", {
@@ -832,40 +841,47 @@ class GameEngine {
     const mk = this.market.find(x => x.id === goodsId);
     if (!mk) return this.addLog("当前黑市无人收这个商品。", "input_error", { action: "sell", reason: "goods_not_in_market", goods_id: goodsId });
     const invItem = this.inv[invIdx];
-    const sellable = this.getSellableCount(invItem);
-    if (sellable <= 0) {
-      return this.addLog("该商品今天刚批发进货，需隔天才能卖出。", "input_error", {
-        action: "sell",
-        reason: "same_day_discount_lock",
-        goods_id: goodsId,
-      });
-    }
-    const n = Math.max(1, Math.min(count, sellable));
+    const n = Math.max(1, Math.min(count, this.inv[invIdx].count));
     const avgCost = this.inv[invIdx].buyPrice || 0;
+    const lockedCount = Math.max(0, Math.min(this.inv[invIdx].sameDayLocked || 0, this.inv[invIdx].count));
+    const lockedCost = Math.max(0, this.inv[invIdx].sameDayLockedCost || 0);
+    const lockedSold = Math.min(n, lockedCount);
+    const normalSold = n - lockedSold;
+    const lockedRevenue = lockedCount > 0 && lockedSold > 0
+      ? Math.floor((lockedCost * lockedSold) / lockedCount)
+      : 0;
+    const normalRevenue = normalSold * mk.price;
+    const totalRevenue = lockedRevenue + normalRevenue;
+    const normalCost = normalSold * avgCost;
+    const totalCostBasis = lockedRevenue + normalCost;
     this.inv[invIdx].count -= n;
-    if (this.inv[invIdx].sameDayLocked) {
-      this.inv[invIdx].sameDayLocked = Math.max(0, Math.min(this.inv[invIdx].sameDayLocked, this.inv[invIdx].count));
-    }
+    this.inv[invIdx].sameDayLocked = Math.max(0, lockedCount - lockedSold);
+    this.inv[invIdx].sameDayLockedCost = Math.max(0, lockedCost - lockedRevenue);
+    if (this.inv[invIdx].sameDayLocked === 0) this.inv[invIdx].sameDayLockedCost = 0;
     if (this.inv[invIdx].count === 0) this.inv.splice(invIdx, 1);
-    this.cash += n * mk.price;
+    this.cash += totalRevenue;
     this.totalItems -= n * (mk.weight || 1);
     if (goodsId === 4) this.fame = Math.max(0, this.fame - 7);
     if (goodsId === 3) this.fame = Math.max(0, this.fame - 10);
-    const pnl = (mk.price - avgCost) * n;
-    this.addLog(`卖出 ${mk.name} x${n}`, "trade", {
+    const pnl = totalRevenue - totalCostBasis;
+    const suffix = lockedSold > 0 ? `（含当日平出 ${lockedSold}）` : "";
+    this.addLog(`卖出 ${mk.name} x${n}${suffix}`, "trade", {
       side: "sell",
       goods_id: goodsId,
       goods: mk.name,
       count: n,
       unit_price: mk.price,
-      total: n * mk.price,
+      total: totalRevenue,
       avg_cost: avgCost,
       pnl,
+      same_day_flat_count: lockedSold,
+      same_day_flat_total: lockedRevenue,
+      market_unit_price: mk.price,
     });
     this.applyTradeImpact(goodsId, n, "sell");
-    this.applyOneTradeEvent(goodsId, n, n * mk.price);
+    this.applyOneTradeEvent(goodsId, n, totalRevenue);
     this.checkCriticalStates();
-    this.lastTrade = { type: "sell", goodsId, goods: mk.name, count: n, unit: mk.price, total: n * mk.price, avgCost, pnl };
+    this.lastTrade = { type: "sell", goodsId, goods: mk.name, count: n, unit: mk.price, total: totalRevenue, avgCost, pnl };
     this.tradeCount += 1;
   }
 
