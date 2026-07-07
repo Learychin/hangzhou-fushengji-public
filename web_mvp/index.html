@@ -2,16 +2,28 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>杭州浮生记 Web MVP</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#06131b" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="杭州浮生记" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./app-icon.svg" type="image/svg+xml" />
+    <title>杭州浮生记</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="app">
       <header class="topbar card">
         <div class="topbar-brand">
-          <h1>杭州浮生记 Web MVP</h1>
+          <div class="top-title-row">
+            <h1>杭州浮生</h1>
+            <span id="topRoundPill" class="top-round-pill">第0/45天</span>
+          </div>
           <p id="dayText">杭州浮生(0/45天)</p>
+          <p id="topNewsTicker" class="top-news-ticker">市场观察中...</p>
           <p id="mobileTopCash" class="mobile-top-cash">现金 ¥0</p>
         </div>
         <div class="top-actions">
@@ -26,6 +38,7 @@
           <button id="mobileMenuBtn" class="icon-btn mobile-menu-btn" title="菜单">☰</button>
           <div id="mobileMenuCard" class="mobile-menu-card hidden" role="menu" aria-label="移动端菜单">
             <div class="mobile-menu-online">在线人数：<strong id="mobileMenuOnlineText">0</strong></div>
+            <div id="mobileVersionText" class="mobile-menu-version">版本读取中</div>
             <button id="menuNewGameBtn" type="button">新游戏</button>
             <button id="menuRankBtn" type="button">胜利榜</button>
             <button id="menuDesktopBtn" type="button">切企业桌面端</button>
@@ -37,6 +50,23 @@
       </header>
       <div id="saveSuccessBanner" class="save-banner hidden" role="status" aria-live="polite"></div>
 
+      <section id="roundProgress" class="round-progress card" aria-label="本局进度">
+        <div class="round-progress-meta">
+          <strong>45 天交易局</strong>
+          <span id="roundProgressText">0/45 天</span>
+          <span id="roundPaceText">每次换地方消耗 1 天</span>
+          <span id="roundGoalText"></span>
+          <span id="roundBountyText"></span>
+          <span id="roundStreakText"></span>
+        </div>
+        <div class="round-progress-track" aria-hidden="true">
+          <span id="roundProgressFill"></span>
+        </div>
+        <div id="roundGoalProgressTrack" class="goal-progress-track" role="progressbar" aria-label="档位进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <span id="roundGoalProgressFill"></span>
+        </div>
+      </section>
+
       <section id="mobileStatusStrip" class="mobile-status-strip card hidden" aria-label="移动端快速状态">
         <div class="mini-stat">
           <span>现金</span>
@@ -46,11 +76,45 @@
           <span>欠债</span>
           <strong id="miniDebt">¥0</strong>
         </button>
-        <div class="mini-stat">
-          <span>物品</span>
+        <button id="miniItemsCard" class="mini-stat mini-stat-btn">
+          <span>仓位</span>
           <strong id="miniItems">0/0</strong>
+        </button>
+        <div class="mini-stat">
+          <span>剩余</span>
+          <strong id="miniDays">剩45天</strong>
         </div>
+        <button id="quickTravelBtn" class="mini-travel-btn">换一站</button>
         <button id="quickExpandBtn" class="mini-expand-btn">扩仓</button>
+      </section>
+
+      <section class="card panel place-dock" id="placeDock">
+        <div class="panel-head place-dock-head">
+          <h2>换地方</h2>
+          <span class="panel-note">选择站点后自动移动一天</span>
+        </div>
+        <div id="placeDockGrid" class="place-dock-grid"></div>
+      </section>
+
+      <section id="opportunityStrip" class="opportunity-strip card hidden" aria-label="今日机会">
+        <article class="opportunity-card" id="buyOpportunityCard">
+          <span>低买机会</span>
+          <strong id="buyOpportunityTitle">观察中</strong>
+          <small id="buyOpportunityMeta">换一站看看行情</small>
+          <button id="buyOpportunityBtn" type="button">买满</button>
+        </article>
+        <article class="opportunity-card" id="sellOpportunityCard">
+          <span>可兑现</span>
+          <strong id="sellOpportunityTitle">暂无盈利</strong>
+          <small id="sellOpportunityMeta">持仓后自动计算</small>
+          <button id="sellOpportunityBtn" type="button">卖光盈利</button>
+        </article>
+        <article class="opportunity-card opportunity-primary" id="actionOpportunityCard">
+          <span>交易</span>
+          <strong id="actionOpportunityTitle">查看行情</strong>
+          <small id="actionOpportunityMeta">每次移动消耗 1 天</small>
+          <button id="actionOpportunityBtn" type="button">执行</button>
+        </article>
       </section>
 
       <section class="headline-grid">
@@ -74,14 +138,14 @@
       <section class="trade-grid" id="tradeSection">
         <div class="card panel" id="marketPanel">
           <div class="panel-head">
-            <h2>黑市 <span id="currentLocBadge" class="loc-chip">未出发</span></h2>
-            <button id="rumorBtn">买行情</button>
+            <h2>市场</h2>
+            <button id="rumorBtn">情报</button>
           </div>
           <p class="panel-note">绿色高亮 = 你已持有该商品</p>
           <div class="table-scroll">
             <table id="marketTable">
               <thead>
-                <tr><th>商品</th><th>黑市价格</th></tr>
+                <tr><th>商品</th><th>买价</th></tr>
               </thead>
               <tbody></tbody>
             </table>
@@ -89,21 +153,29 @@
         </div>
 
         <div class="card panel middle" id="opsPanel">
+          <h2>操作</h2>
           <label>买入数量 <input id="buyCount" type="number" min="1" value="1" /></label>
-          <button id="buyBtn">==> 买入</button>
+          <button id="buyBtn">买入</button>
           <hr />
           <label>卖出数量 <input id="sellCount" type="number" min="1" value="1" /></label>
-          <button id="sellBtn"><== 卖出</button>
+          <button id="sellBtn">卖出</button>
+          <div class="quick-trade-row">
+            <button id="buyMaxBtn" type="button">最大买入</button>
+            <button id="sellMaxBtn" type="button">全部卖出</button>
+          </div>
           <p id="tradeHint" class="panel-note"></p>
         </div>
 
         <div class="card panel" id="invPanel">
-          <h2>当前持仓</h2>
+          <div class="panel-head warehouse-head">
+            <h2>仓库</h2>
+            <button id="warehouseCapacityBtn" type="button" class="capacity-chip">仓位 0/0</button>
+          </div>
           <div id="invSummary" class="inv-summary"></div>
           <div class="table-scroll">
             <table id="invTable">
               <thead>
-                <tr><th>商品</th><th>均价 / 数量</th><th>市值 / 浮盈亏</th></tr>
+                <tr><th>商品名</th><th>数量</th><th>持仓均价</th></tr>
               </thead>
               <tbody></tbody>
             </table>
@@ -111,12 +183,21 @@
         </div>
       </section>
 
-      <section class="card panel place-dock" id="placeDock">
-        <div class="panel-head place-dock-head">
-          <h2>换地方</h2>
-          <span class="panel-note">选择站点后自动移动一天</span>
+      <section id="mobileTradeDock" class="mobile-trade-dock" aria-label="移动端交易操作">
+        <div class="mobile-trade-info">
+          <span id="mobileTradeModeText">买入</span>
+          <strong id="mobileTradeTitle">选择商品</strong>
+          <small id="mobileTradeMeta">点选上方商品后交易</small>
         </div>
-        <div id="placeDockGrid" class="place-dock-grid"></div>
+        <div class="mobile-trade-stepper" aria-label="交易数量">
+          <button id="mobileQtyMinus" type="button" title="减少">-</button>
+          <input id="mobileTradeCount" type="number" min="1" value="1" inputmode="numeric" aria-label="交易数量" />
+          <button id="mobileQtyPlus" type="button" title="增加">+</button>
+        </div>
+        <div class="mobile-trade-actions">
+          <button id="mobileTradePrimaryBtn" type="button">买入当前数量</button>
+          <button id="mobileTradeMaxBtn" type="button">最大</button>
+        </div>
       </section>
 
       <section class="card panel market-news" id="newsPanel">
@@ -249,6 +330,16 @@
       </div>
     </div>
 
+    <section id="thumbActionDock" class="thumb-action-dock hidden" aria-label="底部快捷行动">
+      <div class="thumb-action-copy">
+        <span id="thumbActionKicker">交易</span>
+        <strong id="thumbActionTitle">查看行情</strong>
+        <small id="thumbActionMeta">每次移动消耗 1 天</small>
+        <em id="thumbActionWhy"></em>
+      </div>
+      <button id="thumbActionBtn" type="button">执行</button>
+    </section>
+
     <div id="rankModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="rankTitle">
       <div class="modal-card leaderboard-card">
         <div class="modal-head">
@@ -263,13 +354,13 @@
 
     <div id="startModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="startTitle">
       <div class="modal-card summary-card">
-        <h3 id="startTitle">杭州欢迎你</h3>
+        <h3 id="startTitle">杭州开局</h3>
         <div class="modal-body start-brief">
-          <p><strong>45 天倒计时：</strong>每移动一次消耗 1 天。</p>
-          <p><strong>起始负债：</strong>¥6,000（按天计息）。</p>
-          <p><strong>目标：</strong>低买高卖，45 天内实现翻盘。</p>
-          <p><strong>上榜：</strong>对局结束后直接输入昵称即可登记。</p>
+          <p><strong>45 天交易局：</strong>每次换地方消耗 1 天。</p>
+          <p><strong>核心玩法：</strong>观察不同地点的价格，自己判断买入和卖出时机。</p>
+          <p><strong>开局状态：</strong>现金 ¥3,000，欠债 ¥6,000。</p>
         </div>
+        <div id="startGoalCard" class="start-goal-card hidden" aria-live="polite"></div>
         <div class="modal-actions start-auth-actions">
           <button id="startGoogleBtn" class="oauth-google">
             <span class="google-mark" aria-hidden="true">
@@ -279,7 +370,7 @@
           </button>
           <button id="startEmailBtn" class="ghost-btn">Email 登录/注册</button>
         </div>
-        <button id="startConfirmBtn">明白了，开始闯荡</button>
+        <button id="startConfirmBtn">开始交易</button>
       </div>
     </div>
 
@@ -288,8 +379,23 @@
         <h3 id="endTitle">本局结算</h3>
         <div id="endSummaryBody" class="modal-body"></div>
         <div class="modal-actions">
+          <button id="endReplayBtn">再来一局</button>
+          <button id="endShareBtn">分享战报</button>
+          <button id="endCopyBtn" class="ghost-btn">复制文案</button>
           <button id="endSaveBtn">输入昵称并上榜</button>
           <button id="endSkipBtn" class="ghost-btn">本局仅本地保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="guestSaveModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="guestSaveTitle">
+      <div class="modal-card guest-save-card">
+        <h3 id="guestSaveTitle">输入昵称上榜</h3>
+        <p id="guestSaveHint" class="panel-note">游客上榜不需要登录，后续可用回绑码认领战绩。</p>
+        <label>排行榜昵称 <input id="guestNicknameInput" type="text" maxlength="24" autocomplete="nickname" placeholder="杭州路人甲" /></label>
+        <div class="modal-actions guest-save-actions">
+          <button id="guestSaveSubmitBtn">游客上榜</button>
+          <button id="guestSaveCancelBtn" class="ghost-btn">稍后再说</button>
         </div>
       </div>
     </div>
@@ -330,15 +436,15 @@
     </div>
 
     <div id="debtGuideTip" class="guide-tip hidden" role="status" aria-live="polite">
-      <p>这笔交易盈利了，先还一部分欠债会更稳。</p>
+      <p>当前有未还欠债。</p>
       <div class="guide-tip-actions">
-        <button id="debtGuideTipBtn">去还债</button>
+        <button id="debtGuideTipBtn">打开还债</button>
         <button id="debtGuideTipClose" class="ghost-btn">知道了</button>
       </div>
     </div>
 
     <div id="expandGuideTip" class="guide-tip hidden" role="status" aria-live="polite">
-      <p>你现在现金够扩仓了，点击“扩仓”可以提高上限。</p>
+      <p>当前现金可以扩仓。</p>
       <div class="guide-tip-actions">
         <button id="expandGuideTipBtn">去扩仓</button>
         <button id="expandGuideTipClose" class="ghost-btn">稍后</button>

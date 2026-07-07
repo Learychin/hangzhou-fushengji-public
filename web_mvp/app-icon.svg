@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="杭州浮生记">
+  <rect width="512" height="512" rx="108" fill="#edf4ff"/>
+  <path d="M92 326c56-77 111-116 164-116s108 39 164 116" fill="none" stroke="#7fa3df" stroke-width="34" stroke-linecap="round"/>
+  <path d="M118 362c42-44 88-66 138-66s96 22 138 66" fill="none" stroke="#9bc7ab" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="256" cy="168" r="58" fill="#e8c05d"/>
+  <path d="M150 392h212" stroke="#243047" stroke-width="28" stroke-linecap="round"/>
+  <path d="M198 392c0-35 26-64 58-64s58 29 58 64" fill="#243047"/>
+</svg>
