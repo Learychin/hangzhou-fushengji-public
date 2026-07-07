@@ -5,6 +5,9 @@ dist/
 build/
 coverage/
 tmp/
+reports/
+.playwright-cli/
+output/
 *.log
 
 # Local Netlify folder
