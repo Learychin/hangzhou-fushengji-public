@@ -1608,24 +1608,18 @@ function projectedSellReason(nextNet) {
   return `卖完约 ¥${cnyCompact(value)}`;
 }
 function loadUiModePref() {
-  const raw = window.localStorage.getItem(UI_MODE_PREF_KEY);
-  if (raw === "mobile" || raw === "desktop") forcedUiMode = raw;
-  else forcedUiMode = null;
+  forcedUiMode = "mobile";
+  window.localStorage.removeItem(UI_MODE_PREF_KEY);
 }
 function saveUiModePref(mode) {
-  if (mode === "mobile" || mode === "desktop") window.localStorage.setItem(UI_MODE_PREF_KEY, mode);
-  else window.localStorage.removeItem(UI_MODE_PREF_KEY);
+  forcedUiMode = "mobile";
+  window.localStorage.removeItem(UI_MODE_PREF_KEY);
 }
 function updateUiModeToggleButton() {
   const btn = q("uiModeToggleBtn");
   if (!btn) return;
-  if (isMobileUi) {
-    btn.textContent = "切桌面端";
-    btn.title = "当前移动端视图，点击切换到桌面端";
-  } else {
-    btn.textContent = "切移动端";
-    btn.title = "当前桌面端视图，点击切换到移动端";
-  }
+  btn.hidden = true;
+  btn.setAttribute("aria-hidden", "true");
 }
 function applyAuthUiVisibility() {
   const body = document.body;
@@ -1823,7 +1817,7 @@ function applyMobileView(nextView = "trade") {
 function applyDeviceUiMode() {
   const body = document.body;
   if (!body) return;
-  const nextMobile = forcedUiMode ? forcedUiMode === "mobile" : detectMobileUi();
+  const nextMobile = true;
   if (isMobileUi === nextMobile && (body.classList.contains("mobile-ui") || body.classList.contains("desktop-ui"))) {
     if (nextMobile) applyMobileView(mobileView);
     updateUiModeToggleButton();
@@ -1836,8 +1830,7 @@ function applyDeviceUiMode() {
   const strip = q("mobileStatusStrip");
   if (tabs) tabs.classList.toggle("hidden", !isMobileUi);
   if (strip) strip.classList.toggle("hidden", !isMobileUi);
-  if (isMobileUi) applyMobileView(mobileView);
-  else body.classList.remove("mobile-view-trade", "mobile-view-status");
+  applyMobileView(mobileView);
   updateUiModeToggleButton();
 }
 function escapeHtml(value) {
@@ -4284,12 +4277,11 @@ q("claimGuestBtn").addEventListener("click", () => { claimByTokenManual(); });
 q("copyClaimTokenBtn")?.addEventListener("click", () => { copyLatestClaimToken(); });
 q("signOutBtn").addEventListener("click", () => { signOut(); });
 q("refreshLeaderboardBtn").addEventListener("click", () => { loadLeaderboard(); });
-q("uiModeToggleBtn").addEventListener("click", () => {
-  forcedUiMode = isMobileUi ? "desktop" : "mobile";
-  saveUiModePref(forcedUiMode);
+q("uiModeToggleBtn")?.addEventListener("click", () => {
+  forcedUiMode = "mobile";
+  saveUiModePref("mobile");
   applyDeviceUiMode();
   render();
-  showSaveBanner(`已切换到${isMobileUi ? "移动端" : "桌面端"}视图。`, 1800);
 });
 q("mobileMenuBtn")?.addEventListener("click", (ev) => {
   ev.stopPropagation();
@@ -4301,14 +4293,7 @@ q("menuRankBtn")?.addEventListener("click", () => {
   closeMobileMenu();
   loadLeaderboard();
 });
-q("menuDesktopBtn")?.addEventListener("click", () => {
-  forcedUiMode = "desktop";
-  saveUiModePref(forcedUiMode);
-  applyDeviceUiMode();
-  closeMobileMenu();
-  render();
-  showSaveBanner("已切到企业桌面端。", 1800);
-});
+q("menuDesktopBtn")?.remove();
 document.addEventListener("click", (ev) => {
   const card = q("mobileMenuCard");
   const btn = q("mobileMenuBtn");

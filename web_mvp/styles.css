@@ -4549,3 +4549,387 @@ body.mobile-ui #opsPanel {
 body.mobile-ui .thumb-action-dock {
   display: grid !important;
 }
+
+/* Mobile-only final pass: one small-program-style flow, no desktop affordances. */
+body.mobile-ui {
+  overflow-x: hidden;
+  touch-action: manipulation;
+  background:
+    linear-gradient(90deg, rgba(17, 17, 17, 0.035) 1px, transparent 1px) 0 0 / 56px 56px,
+    #d6d4cd;
+}
+
+body.mobile-ui .app {
+  width: min(430px, 100vw);
+  max-width: 430px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 0 0 calc(116px + env(safe-area-inset-bottom));
+  border-width: 0 1px;
+  overflow-x: hidden;
+}
+
+body.mobile-ui #uiModeToggleBtn,
+body.mobile-ui #menuDesktopBtn,
+body.mobile-ui #newGameBtnTop,
+body.mobile-ui #rankBtnTop,
+body.mobile-ui .score,
+body.mobile-ui .online-status,
+body.mobile-ui .avatar-btn,
+body.mobile-ui .mobile-tabs,
+body.mobile-ui .opportunity-strip,
+body.mobile-ui .thumb-action-dock,
+body.mobile-ui #opsPanel {
+  display: none !important;
+}
+
+body.mobile-ui .topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 74px;
+  min-height: 70px;
+  height: auto;
+  border-bottom: 1px solid var(--intl-line);
+}
+
+body.mobile-ui .topbar-brand {
+  grid-column: 1;
+  border-right: 1px solid var(--intl-line);
+  padding: 11px 16px 9px;
+}
+
+body.mobile-ui .top-actions {
+  grid-column: 2;
+  display: grid;
+}
+
+body.mobile-ui .mobile-menu-btn {
+  display: grid !important;
+  width: 100%;
+  height: 100%;
+  min-height: 68px;
+  place-items: center;
+  font-size: 30px;
+}
+
+body.mobile-ui .mobile-menu-card {
+  right: 10px;
+  top: 72px;
+  width: min(220px, calc(100vw - 20px));
+  border: 1px solid var(--intl-line);
+  border-radius: 12px;
+}
+
+body.mobile-ui .top-title-row {
+  gap: 9px;
+}
+
+body.mobile-ui .topbar-brand h1 {
+  font-size: 26px;
+  line-height: 1;
+}
+
+body.mobile-ui .top-round-pill {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+body.mobile-ui .top-news-ticker {
+  margin-top: 7px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+body.mobile-ui .round-progress {
+  margin: 0;
+  padding: 10px 16px 9px;
+  border: 0;
+  border-bottom: 1px solid var(--intl-line);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+body.mobile-ui .round-progress-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  align-items: baseline;
+}
+
+body.mobile-ui .round-progress-meta strong {
+  font-size: 15px;
+}
+
+body.mobile-ui #roundProgressText {
+  justify-self: end;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+body.mobile-ui #roundPaceText,
+body.mobile-ui #roundGoalText,
+body.mobile-ui #roundBountyText,
+body.mobile-ui #roundStreakText {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+body.mobile-ui #roundPaceText {
+  display: none;
+}
+
+body.mobile-ui .round-progress-track,
+body.mobile-ui .goal-progress-track {
+  height: 6px;
+  margin-top: 6px;
+}
+
+body.mobile-ui .mobile-status-strip {
+  grid-template-columns: minmax(0, 1fr) minmax(116px, 0.42fr);
+  grid-template-rows: 78px;
+  height: 78px;
+  margin: 0;
+  border-bottom: 1px solid var(--intl-line);
+}
+
+body.mobile-ui #mobileStatusStrip > .mini-stat:first-child {
+  grid-column: 1;
+  grid-row: 1;
+  padding: 10px 16px;
+}
+
+body.mobile-ui #miniDebtCard {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+body.mobile-ui .mini-stat,
+body.mobile-ui .mini-stat-btn {
+  border-bottom: 0;
+  padding: 9px 14px;
+}
+
+body.mobile-ui #mobileStatusStrip > .mini-stat:first-child strong {
+  font-size: clamp(36px, 11vw, 48px);
+}
+
+body.mobile-ui .place-dock {
+  margin: 0;
+  border-bottom: 1px solid var(--intl-line);
+}
+
+body.mobile-ui .place-dock-head {
+  display: none;
+}
+
+body.mobile-ui .place-dock-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 42px;
+}
+
+body.mobile-ui .place-dock-item,
+body.mobile-ui .place-dock-item:nth-child(6n) {
+  min-height: 42px;
+  border-right: 1px solid var(--intl-soft);
+  border-bottom: 1px solid var(--intl-soft);
+}
+
+body.mobile-ui .place-dock-item:nth-child(4n) {
+  border-right: 0;
+}
+
+body.mobile-ui .place-dock-item span {
+  font-size: 13px;
+  line-height: 1.1;
+}
+
+body.mobile-ui.mobile-view-trade #tradeSection,
+body.mobile-ui .trade-grid {
+  display: block !important;
+  margin: 0;
+  border-bottom: 0;
+}
+
+body.mobile-ui #marketPanel,
+body.mobile-ui #invPanel {
+  display: block !important;
+  width: 100%;
+  min-width: 0;
+  border-right: 0;
+  border-bottom: 1px solid var(--intl-line);
+  padding: 0;
+}
+
+body.mobile-ui #marketPanel .panel-head,
+body.mobile-ui #invPanel .warehouse-head {
+  min-height: 48px;
+  padding: 0 16px;
+}
+
+body.mobile-ui #marketPanel h2,
+body.mobile-ui #invPanel h2 {
+  font-size: 23px;
+}
+
+body.mobile-ui #marketPanel .panel-note {
+  display: none;
+}
+
+body.mobile-ui .table-scroll,
+body.mobile-ui #marketPanel .table-scroll,
+body.mobile-ui #invPanel .table-scroll,
+body.mobile-ui.mobile-view-trade #marketPanel .table-scroll,
+body.mobile-ui.mobile-view-trade #invPanel .table-scroll {
+  max-height: none;
+  overflow: visible;
+  border: 0;
+}
+
+body.mobile-ui table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+body.mobile-ui th {
+  height: 34px;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+body.mobile-ui td {
+  height: 42px;
+  padding: 6px 12px;
+  font-size: 15px;
+}
+
+body.mobile-ui #marketTable th:nth-child(1),
+body.mobile-ui #marketTable td:nth-child(1) {
+  width: 62%;
+}
+
+body.mobile-ui #marketTable th:nth-child(2),
+body.mobile-ui #marketTable td:nth-child(2) {
+  width: 38%;
+  text-align: right;
+}
+
+body.mobile-ui #invTable th:nth-child(1),
+body.mobile-ui #invTable td:nth-child(1) {
+  width: 48%;
+}
+
+body.mobile-ui #invTable th:nth-child(2),
+body.mobile-ui #invTable td:nth-child(2) {
+  width: 20%;
+  text-align: right;
+}
+
+body.mobile-ui #invTable th:nth-child(3),
+body.mobile-ui #invTable td:nth-child(3) {
+  width: 32%;
+  text-align: right;
+}
+
+body.mobile-ui #invPanel .inv-summary {
+  display: block;
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--intl-soft);
+  color: var(--intl-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+body.mobile-ui .mobile-trade-dock {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  z-index: 150;
+  width: min(430px, calc(100vw - 16px));
+  max-width: 430px;
+  margin: 0;
+  transform: translateX(-50%);
+  grid-template-columns: minmax(0, 1fr) 116px;
+  grid-template-areas:
+    "info max"
+    "stepper primary";
+  border: 1px solid var(--intl-line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--intl-paper);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.24);
+}
+
+body.mobile-ui .mobile-trade-info {
+  min-height: 62px;
+  padding: 8px 14px;
+}
+
+body.mobile-ui .mobile-trade-info strong {
+  font-size: 18px;
+}
+
+body.mobile-ui .mobile-trade-info small {
+  font-size: 12px;
+}
+
+body.mobile-ui #mobileTradeMaxBtn {
+  min-height: 62px;
+}
+
+body.mobile-ui #mobileTradeMaxBtn span,
+body.mobile-ui #mobileTradePrimaryBtn {
+  font-size: 17px;
+}
+
+body.mobile-ui #mobileTradeMaxBtn strong {
+  font-size: 16px;
+}
+
+body.mobile-ui .mobile-trade-stepper,
+body.mobile-ui .mobile-trade-stepper button,
+body.mobile-ui .mobile-trade-stepper input,
+body.mobile-ui #mobileTradePrimaryBtn {
+  min-height: 46px;
+}
+
+body.mobile-ui .mobile-trade-stepper button,
+body.mobile-ui .mobile-trade-stepper input {
+  font-size: 20px;
+}
+
+body.mobile-ui .mobile-trade-dock.is-disabled {
+  grid-template-columns: 1fr;
+  grid-template-areas: "info";
+}
+
+body.mobile-ui .mobile-trade-dock.is-disabled .mobile-trade-info {
+  min-height: 58px;
+  padding-right: 14px;
+}
+
+body.mobile-ui .mobile-trade-dock.is-disabled #mobileTradeMaxBtn,
+body.mobile-ui .mobile-trade-dock.is-disabled .mobile-trade-stepper,
+body.mobile-ui .mobile-trade-dock.is-disabled #mobileTradePrimaryBtn {
+  display: none !important;
+}
+
+@media (max-width: 340px) {
+  body.mobile-ui .topbar-brand h1 {
+    font-size: 23px;
+  }
+
+  body.mobile-ui .place-dock-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body.mobile-ui .place-dock-item:nth-child(4n) {
+    border-right: 1px solid var(--intl-soft);
+  }
+
+  body.mobile-ui .place-dock-item:nth-child(3n) {
+    border-right: 0;
+  }
+}
