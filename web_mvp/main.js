@@ -1760,9 +1760,15 @@ function renderPlaceDockGrid() {
   if (key === lastPlaceDockRenderKey && grid.childElementCount > 0) return;
   lastPlaceDockRenderKey = key;
   grid.innerHTML = "";
-  game.cityLabels.forEach((name, idx) => {
-    const loc = idx + 1;
-    const district = game.locationDistricts[idx] || "shangcheng";
+  const districtOrder = ["xihu", "gongshu", "shangcheng", "binjiang", "yuhang", "xiaoshan"];
+  const places = game.cityLabels
+    .map((name, idx) => {
+      const district = game.locationDistricts[idx] || "shangcheng";
+      const order = districtOrder.indexOf(district);
+      return { name, loc: idx + 1, district, order: order < 0 ? 999 : order };
+    })
+    .sort((a, b) => a.order - b.order || a.loc - b.loc);
+  places.forEach(({ name, loc, district }) => {
     const b = document.createElement("button");
     b.className = `place-dock-item district-${district}`;
     if (game.currentLoc === loc) b.classList.add("active");
@@ -1787,7 +1793,7 @@ function travelToLocation(locIdx) {
   softTap();
   game.oneTravelTurn(locIdx);
   if (game.currentLoc !== prevLoc) {
-    selectedMarket = null;
+    selectedMarket = game.market[0]?.id ?? null;
     selectedInv = null;
     setMobileTradeMode("buy", false);
     marketRefreshPending = true;
@@ -3936,6 +3942,13 @@ function render() {
   if (q("newsDayTag")) q("newsDayTag").textContent = `第${game.daysUsed}天`;
   if (q("newsHeadline")) q("newsHeadline").textContent = game.todayNews?.title || "【市场平稳】";
   if (q("topNewsTicker")) q("topNewsTicker").textContent = game.todayNews?.title || "【市场平稳】今天没有重磅消息。";
+  if (q("miniTickerText")) {
+    const latestLog = Array.isArray(game.logs) && game.logs.length ? game.logs[game.logs.length - 1] : "";
+    const newsText = game.todayNews?.title
+      ? `${game.todayNews.title} ${game.todayNews?.desc || ""}`.trim()
+      : "市场观察中";
+    q("miniTickerText").textContent = latestLog && !String(latestLog).startsWith("新游戏开始") ? latestLog : newsText;
+  }
   if (q("newsDesc")) q("newsDesc").textContent = game.todayNews?.desc || "暂无重磅新闻。";
   if (q("newsEffects")) {
     const effects = game.todayNews?.effects || [];
@@ -3960,6 +3973,10 @@ function render() {
 
   if (selectedMarket != null && !game.market.some((x) => x.id === selectedMarket)) selectedMarket = null;
   if (selectedInv != null && !game.inv.some((x) => x.id === selectedInv)) selectedInv = null;
+  if (selectedMarket == null && selectedInv == null && game.market.length > 0 && !game.gameOver) {
+    selectedMarket = game.market[0].id;
+    setMobileTradeMode("buy", false);
+  }
 
   renderMarketTable(null);
   renderInventoryTable(null);
