@@ -11,8 +11,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./app-icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="./app-icon-192.png" sizes="192x192" type="image/png" />
+    <link rel="apple-touch-icon" href="./app-icon-180.png" sizes="180x180" />
     <title>杭州浮生记</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./layout-v2.css" />
   </head>
   <body>
     <div class="app">
@@ -38,6 +41,8 @@
           <div id="mobileMenuCard" class="mobile-menu-card hidden" role="menu" aria-label="移动端菜单">
             <div class="mobile-menu-online">在线人数：<strong id="mobileMenuOnlineText">0</strong></div>
             <div id="mobileVersionText" class="mobile-menu-version">版本读取中</div>
+            <button id="menuTradeBtn" type="button">回到交易台</button>
+            <button id="menuLedgerBtn" type="button">查看账本</button>
             <button id="menuNewGameBtn" type="button">新游戏</button>
             <button id="menuRankBtn" type="button">胜利榜</button>
           </div>
@@ -67,6 +72,17 @@
         <div id="roundGoalProgressTrack" class="goal-progress-track" role="progressbar" aria-label="档位进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
           <span id="roundGoalProgressFill"></span>
         </div>
+        <div id="careerProgress" class="career-progress" aria-label="杭州经营阶段">
+          <div class="career-progress-copy">
+            <span id="careerStageKicker">杭州经营阶段</span>
+            <strong id="careerStageName">跑街学徒</strong>
+            <small id="careerStageHint">先把净身价从负数拉回零</small>
+          </div>
+          <div id="careerStageSteps" class="career-stage-steps" aria-hidden="true"></div>
+          <div id="careerStageTrack" class="career-stage-track" role="progressbar" aria-label="下一经营阶段进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <span id="careerStageFill"></span>
+          </div>
+        </div>
       </section>
 
       <section id="mobileStatusStrip" class="mobile-status-strip card hidden" aria-label="移动端快速状态">
@@ -92,9 +108,15 @@
 
       <section class="card panel place-dock" id="placeDock">
         <div class="panel-head place-dock-head">
-          <h2>换地方</h2>
+          <h2>去哪里</h2>
           <span class="panel-note">选择站点后自动移动一天</span>
         </div>
+        <button id="placePickerBtn" class="place-picker-trigger" type="button" aria-expanded="false">
+          <span>当前地点</span>
+          <strong id="placePickerLabel">西湖</strong>
+          <em>更换</em>
+        </button>
+        <button id="placePickerBackdrop" class="place-picker-backdrop" type="button" aria-label="关闭地点选择"></button>
         <div id="placeDockGrid" class="place-dock-grid"></div>
       </section>
 
@@ -131,11 +153,6 @@
           <p class="sub">净资产（现金+存款-欠债）</p>
         </article>
       </section>
-
-      <nav id="mobileTabs" class="mobile-tabs hidden" aria-label="移动端快捷导航">
-        <button class="mobile-tab active" data-mobile-tab="trade" id="mobileTabTrade">交易</button>
-        <button class="mobile-tab" data-mobile-tab="status" id="mobileTabStatus">状态</button>
-      </nav>
 
       <section class="trade-grid" id="tradeSection">
         <div class="card panel" id="marketPanel">
@@ -186,6 +203,7 @@
       </section>
 
       <section id="mobileTradeDock" class="mobile-trade-dock" aria-label="移动端交易操作">
+        <button id="mobileTradeCloseBtn" class="mobile-trade-close" type="button" aria-label="退出手动交易">×</button>
         <div class="mobile-trade-info">
           <span id="mobileTradeModeText">买入</span>
           <strong id="mobileTradeTitle">选择商品</strong>
@@ -214,7 +232,7 @@
 
       <section class="bottom-grid" id="bottomSection">
         <div class="card panel" id="statusPanel">
-          <h2>你的状态</h2>
+          <h2>账本与状态</h2>
           <div class="stats">
             <div><span>现金</span><strong id="cash"></strong></div>
             <div><span>存款</span><strong id="bank"></strong></div>
