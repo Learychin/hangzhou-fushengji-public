@@ -156,7 +156,7 @@ async function browserTarget(port) {
 }
 
 async function waitReady(cdp) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
     const ready = await evaluate(cdp, `document.readyState === "complete"
       && document.body.classList.contains("mobile-ui")
       && Boolean(document.querySelector("#marketTable tbody tr"))`);

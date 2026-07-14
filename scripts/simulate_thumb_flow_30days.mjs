@@ -3,8 +3,7 @@ import path from "node:path";
 import vm from "node:vm";
 
 const ROOT = process.cwd();
-const ENGINE_JS = path.join(ROOT, "src", "engine", "game-engine.js");
-const MAIN_JS = path.join(ROOT, "main.js");
+const MAIN_JS = path.join(ROOT, "web_mvp", "main.js");
 const RUNS = Number(process.env.RUNS || 48);
 const SEED_BASE = Number(process.env.SEED_BASE || 20260621);
 const MAX_TAPS_PER_RUN = Number(process.env.MAX_TAPS_PER_RUN || 160);
@@ -18,11 +17,10 @@ function seededRandom(seed) {
 }
 
 function loadEngine(seed) {
-  const engineSource = fs.readFileSync(ENGINE_JS, "utf8");
   const source = fs.readFileSync(MAIN_JS, "utf8");
-  const marker = "\nconst game = new GameEngine();";
+  const marker = "\n})();\n\n\"use strict\";";
   const markerIndex = source.indexOf(marker);
-  if (markerIndex < 0) throw new Error("Could not find GameEngine boundary in main.js");
+  if (markerIndex < 0) throw new Error("Could not find engine module boundary in web_mvp/main.js");
 
   const seededMath = Object.create(Math);
   seededMath.random = seededRandom(seed);
@@ -33,12 +31,11 @@ function loadEngine(seed) {
     Math: seededMath,
   };
   vm.createContext(context);
-  vm.runInContext(engineSource, context, { filename: "src/engine/game-engine.js" });
   vm.runInContext(
-    `${source.slice(0, markerIndex)}
-globalThis.__exports = { GameEngine, TOTAL_DAYS, GAME_VERSION_CODE };`,
+    `${source.slice(0, markerIndex + "\n})();".length)}
+globalThis.__exports = globalThis.HZFSJEngine;`,
     context,
-    { filename: "main.js" },
+    { filename: "web_mvp/main.js" },
   );
   return context.__exports;
 }

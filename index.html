@@ -3,349 +3,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>杭州浮生记 Web MVP</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <meta http-equiv="refresh" content="0; url=./web_mvp/" />
+    <link rel="canonical" href="./web_mvp/" />
+    <title>杭州浮生记</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #d6d4cd;
+        color: #111;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      main {
+        width: min(360px, calc(100vw - 32px));
+        border: 1px solid #333;
+        background: #f4f3ee;
+        padding: 24px;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 32px;
+      }
+      a {
+        color: #0f6f8a;
+        font-weight: 800;
+      }
+    </style>
   </head>
   <body>
-    <div class="app">
-      <header class="topbar card">
-        <div class="topbar-brand">
-          <h1>杭州浮生记 Web MVP</h1>
-          <p id="dayText">杭州浮生(0/45天)</p>
-          <p id="mobileTopCash" class="mobile-top-cash">现金 ¥0</p>
-        </div>
-        <div class="top-actions">
-          <div id="onlineStatus" class="online-status" title="当前在线玩家">
-            <div id="onlineAvatars" class="online-avatars"></div>
-            <span id="onlineCountText">在线 0</span>
-          </div>
-          <div class="score">总分 <span id="scoreText">0</span></div>
-          <button id="newGameBtnTop">新游戏</button>
-          <button id="rankBtnTop" class="icon-btn" title="胜利榜">胜利榜</button>
-          <button id="uiModeToggleBtn" class="icon-btn" title="切换显示模式">切移动端</button>
-          <button id="mobileMenuBtn" class="icon-btn mobile-menu-btn" title="菜单">☰</button>
-          <div id="mobileMenuCard" class="mobile-menu-card hidden" role="menu" aria-label="移动端菜单">
-            <div class="mobile-menu-online">在线人数：<strong id="mobileMenuOnlineText">0</strong></div>
-            <button id="menuNewGameBtn" type="button">新游戏</button>
-            <button id="menuRankBtn" type="button">胜利榜</button>
-            <button id="menuDesktopBtn" type="button">切企业桌面端</button>
-          </div>
-          <button id="accountBtnTop" class="avatar-btn" title="账号">
-            <span id="accountAvatar" class="account-avatar avatar-fallback">人</span>
-          </button>
-        </div>
-      </header>
-      <div id="saveSuccessBanner" class="save-banner hidden" role="status" aria-live="polite"></div>
-
-      <section id="mobileStatusStrip" class="mobile-status-strip card hidden" aria-label="移动端快速状态">
-        <div class="mini-stat">
-          <span>现金</span>
-          <strong id="miniCash">¥0</strong>
-        </div>
-        <button id="miniDebtCard" class="mini-stat mini-stat-btn">
-          <span>欠债</span>
-          <strong id="miniDebt">¥0</strong>
-        </button>
-        <div class="mini-stat">
-          <span>物品</span>
-          <strong id="miniItems">0/0</strong>
-        </div>
-        <button id="quickExpandBtn" class="mini-expand-btn">扩仓</button>
-      </section>
-
-      <section class="headline-grid">
-        <article class="card stat-card">
-          <p class="kicker">CASH ON HAND</p>
-          <h3 id="cashHeadline">0</h3>
-          <p class="sub">手头现金</p>
-        </article>
-        <article class="card stat-card">
-          <p class="kicker">NET WORTH</p>
-          <h3 id="netWorth">0</h3>
-          <p class="sub">净资产（现金+存款-欠债）</p>
-        </article>
-      </section>
-
-      <nav id="mobileTabs" class="mobile-tabs hidden" aria-label="移动端快捷导航">
-        <button class="mobile-tab active" data-mobile-tab="trade" id="mobileTabTrade">交易</button>
-        <button class="mobile-tab" data-mobile-tab="status" id="mobileTabStatus">状态</button>
-      </nav>
-
-      <section class="trade-grid" id="tradeSection">
-        <div class="card panel" id="marketPanel">
-          <div class="panel-head">
-            <h2>黑市 <span id="currentLocBadge" class="loc-chip">未出发</span></h2>
-            <button id="rumorBtn">买行情</button>
-          </div>
-          <p class="panel-note">绿色高亮 = 你已持有该商品</p>
-          <div class="table-scroll">
-            <table id="marketTable">
-              <thead>
-                <tr><th>商品</th><th>黑市价格</th></tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="card panel middle" id="opsPanel">
-          <label>买入数量 <input id="buyCount" type="number" min="1" value="1" /></label>
-          <button id="buyBtn">==> 买入</button>
-          <hr />
-          <label>卖出数量 <input id="sellCount" type="number" min="1" value="1" /></label>
-          <button id="sellBtn"><== 卖出</button>
-          <p id="tradeHint" class="panel-note"></p>
-        </div>
-
-        <div class="card panel" id="invPanel">
-          <h2>当前持仓</h2>
-          <div id="invSummary" class="inv-summary"></div>
-          <div class="table-scroll">
-            <table id="invTable">
-              <thead>
-                <tr><th>商品</th><th>均价 / 数量</th><th>市值 / 浮盈亏</th></tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section class="card panel place-dock" id="placeDock">
-        <div class="panel-head place-dock-head">
-          <h2>换地方</h2>
-          <span class="panel-note">选择站点后自动移动一天</span>
-        </div>
-        <div id="placeDockGrid" class="place-dock-grid"></div>
-      </section>
-
-      <section class="card panel market-news" id="newsPanel">
-        <div class="panel-head">
-          <h2>今日新闻</h2>
-          <span id="newsDayTag" class="panel-note">第0天</span>
-        </div>
-        <p id="newsHeadline" class="news-headline">市场观察中…</p>
-        <p id="newsDesc" class="panel-note">暂无新闻。</p>
-        <div id="newsEffects" class="news-effects"></div>
-      </section>
-
-      <section class="bottom-grid" id="bottomSection">
-        <div class="card panel" id="statusPanel">
-          <h2>你的状态</h2>
-          <div class="stats">
-            <div><span>现金</span><strong id="cash"></strong></div>
-            <div><span>存款</span><strong id="bank"></strong></div>
-            <div id="debtStatCard"><span>欠债</span><strong id="debt"></strong></div>
-            <div><span>健康</span><strong id="health"></strong></div>
-            <div><span>名声</span><strong id="fame"></strong></div>
-            <div><span>物品</span><strong id="items"></strong></div>
-          </div>
-          <div class="ops">
-            <section class="ops-group">
-              <h3>资金流</h3>
-              <div class="ops-row">
-                <label>银行金额 <input id="bankAmount" type="number" min="0" value="1000" /></label>
-                <button id="depositBtn">存款</button>
-                <button id="withdrawBtn">取款</button>
-              </div>
-              <div class="ops-row repay-row">
-                <label>还债金额 <input id="repayAmount" type="number" min="0" value="1000" /></label>
-                <button id="repaySmartBtn">还债（智能）</button>
-              </div>
-            </section>
-            <section class="ops-group">
-              <h3>健康与仓位</h3>
-              <div class="ops-row">
-                <label>治疗点数 <input id="curePoints" type="number" min="1" value="1" /></label>
-                <button id="cureBtn">医院治疗</button>
-                <button id="rentBtn">租房中介</button>
-              </div>
-              <div class="ops-row">
-                <label>消灾预算 <input id="blessAmount" type="number" min="500" value="3000" /></label>
-                <button id="charityBtn">慈善捐款</button>
-                <button id="wellnessBtn">修养疗程</button>
-              </div>
-            </section>
-          </div>
-        </div>
-
-        <div class="card panel" id="mapPanel">
-          <h2 id="mapTitle">换地方（点击站点移动一天）</h2>
-          <div class="map-frame">
-            <div id="mapButtons" class="map-grid city-grid"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="card panel" id="logsSection">
-        <h2>事件日志</h2>
-        <p class="panel-note">包含成交价与单笔盈亏记录</p>
-        <div id="logs" class="logs"></div>
-      </section>
-
-    </div>
-    <div id="eventModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="eventTitle">
-      <div class="modal-card">
-        <h3 id="eventTitle">市场异动</h3>
-        <div id="eventBody" class="modal-body"></div>
-        <button id="eventOkBtn">知道了</button>
-      </div>
-    </div>
-
-    <div id="accountModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
-      <div class="modal-card account-card">
-        <div class="modal-head">
-          <h3 id="accountTitle">账号</h3>
-          <button id="accountCloseBtn" class="small-btn" title="关闭">关闭</button>
-        </div>
-        <p id="cloudStatusText" class="panel-note">正在连接云端...</p>
-
-        <div id="authPanel" class="account-section">
-          <label>邮箱 <input id="accountEmail" type="email" autocomplete="email" placeholder="you@example.com" /></label>
-          <label>密码 <input id="accountPassword" type="password" autocomplete="current-password" placeholder="至少 6 位" /></label>
-          <label>昵称 <input id="accountNickname" type="text" maxlength="24" placeholder="排行榜显示名" /></label>
-          <div class="account-actions">
-            <button id="emailLoginBtn">邮箱登录</button>
-            <button id="emailSignupBtn">邮箱注册</button>
-          </div>
-          <div class="account-actions">
-            <button id="googleLoginBtn" class="oauth-google">
-              <span class="google-mark" aria-hidden="true">
-                <span class="g g-blue"></span><span class="g g-red"></span><span class="g g-yellow"></span><span class="g g-green"></span>
-              </span>
-              <span>Google 登录</span>
-            </button>
-            <button id="appleLoginBtn" disabled title="正在开发中">Apple（开发中）</button>
-          </div>
-          <div class="account-actions">
-            <button id="smsLoginBtn" disabled title="正在开发中">手机验证码（开发中）</button>
-            <button id="wechatLoginBtn" disabled title="正在开发中">微信一键登录（开发中）</button>
-          </div>
-        </div>
-
-        <div id="userPanel" class="account-section hidden">
-          <div class="user-row">
-            <span>当前账号</span>
-            <strong id="accountUserText">未登录</strong>
-          </div>
-          <label>排行榜昵称 <input id="profileNameInput" type="text" maxlength="24" /></label>
-          <div class="account-actions">
-            <button id="saveNickBtn">保存昵称</button>
-            <button id="retrySaveBtn">保存本局</button>
-            <button id="signOutBtn">退出登录</button>
-          </div>
-          <label>回绑码 <input id="claimTokenInput" type="text" maxlength="48" placeholder="输入游客回绑码（选填）" /></label>
-          <div class="account-actions">
-            <button id="claimGuestBtn">认领游客战绩</button>
-          </div>
-          <div class="claim-copy-row">
-            <input id="latestClaimToken" type="text" readonly placeholder="本机暂无可复制回绑码" />
-            <button id="copyClaimTokenBtn" type="button">一键复制</button>
-          </div>
-          <p id="claimTokenHint" class="panel-note"></p>
-        </div>
-
-        <p id="authMessage" class="auth-message"></p>
-      </div>
-    </div>
-
-    <div id="rankModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="rankTitle">
-      <div class="modal-card leaderboard-card">
-        <div class="modal-head">
-          <h3 id="rankTitle">全服胜利榜</h3>
-          <button id="rankCloseBtn" class="small-btn" title="关闭">关闭</button>
-        </div>
-        <p id="leaderboardUpdated" class="panel-note">读取中...</p>
-        <ol id="leaderboardList" class="leaderboard-list"></ol>
-        <button id="refreshLeaderboardBtn">刷新榜单</button>
-      </div>
-    </div>
-
-    <div id="startModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="startTitle">
-      <div class="modal-card summary-card">
-        <h3 id="startTitle">杭州欢迎你</h3>
-        <div class="modal-body start-brief">
-          <p><strong>45 天倒计时：</strong>每移动一次消耗 1 天。</p>
-          <p><strong>起始负债：</strong>¥6,000（按天计息）。</p>
-          <p><strong>目标：</strong>低买高卖，45 天内实现翻盘。</p>
-          <p><strong>上榜：</strong>对局结束后直接输入昵称即可登记。</p>
-        </div>
-        <div class="modal-actions start-auth-actions">
-          <button id="startGoogleBtn" class="oauth-google">
-            <span class="google-mark" aria-hidden="true">
-              <span class="g g-blue"></span><span class="g g-red"></span><span class="g g-yellow"></span><span class="g g-green"></span>
-            </span>
-            <span>Google 登录/注册</span>
-          </button>
-          <button id="startEmailBtn" class="ghost-btn">Email 登录/注册</button>
-        </div>
-        <button id="startConfirmBtn">明白了，开始闯荡</button>
-      </div>
-    </div>
-
-    <div id="endModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="endTitle">
-      <div class="modal-card summary-card">
-        <h3 id="endTitle">本局结算</h3>
-        <div id="endSummaryBody" class="modal-body"></div>
-        <div class="modal-actions">
-          <button id="endSaveBtn">输入昵称并上榜</button>
-          <button id="endSkipBtn" class="ghost-btn">本局仅本地保存</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="capacityModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="capacityTitle">
-      <div class="modal-card summary-card">
-        <h3 id="capacityTitle">仓位升级确认</h3>
-        <div class="modal-body">
-          <p id="capacitySummaryText"></p>
-          <p id="capacityAffordableText" class="panel-note"></p>
-          <label>扩仓数量（10 的倍数）
-            <input id="capacityTargetInput" type="number" min="10" max="390" step="10" />
-          </label>
-          <p id="capacityCostText" class="panel-note"></p>
-        </div>
-        <div class="modal-actions">
-          <button id="capacityCancelBtn" class="ghost-btn">取消</button>
-          <button id="capacityConfirmBtn">确认升级</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="repayModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="repayTitle">
-      <div class="modal-card summary-card repay-card">
-        <h3 id="repayTitle">立即还债</h3>
-        <div class="modal-body">
-          <p id="repayModalInfo"></p>
-          <label class="repay-label">还债金额
-            <input id="repayModalAmount" type="number" min="0" value="1000" />
-          </label>
-        </div>
-        <div class="modal-actions repay-actions">
-          <button id="repayModalCancel" class="ghost-btn">稍后</button>
-          <button id="repayModalAll" class="ghost-btn">全部还清</button>
-          <button id="repayModalConfirm">确认还债</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="debtGuideTip" class="guide-tip hidden" role="status" aria-live="polite">
-      <p>这笔交易盈利了，先还一部分欠债会更稳。</p>
-      <div class="guide-tip-actions">
-        <button id="debtGuideTipBtn">去还债</button>
-        <button id="debtGuideTipClose" class="ghost-btn">知道了</button>
-      </div>
-    </div>
-
-    <div id="expandGuideTip" class="guide-tip hidden" role="status" aria-live="polite">
-      <p>你现在现金够扩仓了，点击“扩仓”可以提高上限。</p>
-      <div class="guide-tip-actions">
-        <button id="expandGuideTipBtn">去扩仓</button>
-        <button id="expandGuideTipClose" class="ghost-btn">稍后</button>
-      </div>
-    </div>
-
-    <script src="./config.js"></script>
-    <script src="./main.js"></script>
+    <main>
+      <h1>杭州浮生记</h1>
+      <p>正在进入移动版游戏。</p>
+      <p><a href="./web_mvp/">进入游戏</a></p>
+    </main>
+    <script>
+      window.location.replace("./web_mvp/" + window.location.search + window.location.hash);
+    </script>
   </body>
-  </html>
+</html>
