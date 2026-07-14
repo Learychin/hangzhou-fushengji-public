@@ -4,6 +4,8 @@ const state = { client: null };
 let adminVerified = false;
 let selectedRunId = null;
 let currentRunRows = [];
+let currentCityRows = [];
+let currentCampaignRows = [];
 const selectedRunIds = new Set();
 const selectedRunRows = new Map();
 const PLATFORM_INFO = [
@@ -15,17 +17,17 @@ const PLATFORM_INFO = [
     note: "代码真相源（Single Source of Truth）",
   },
   {
-    key: "netlify",
-    name: "Netlify",
-    version: "待检测",
-    role: "Web 版本托管与发布。每次主分支更新后可自动构建并上线，提供稳定访问入口。",
+    key: "pages",
+    name: "GitHub Pages",
+    version: "Pages Actions v4",
+    role: "Web 版本托管与发布。主分支验证通过后自动部署 web_mvp，并由自定义域名提供稳定访问入口。",
     note: "Web 发布与静态托管",
   },
   {
     key: "supabase",
     name: "Supabase",
-    version: "supabase-js@2 / SQL migration 20260505",
-    role: "游戏云端数据层。负责登录鉴权、排行榜、对局记录、事件日志、在线状态同步。",
+    version: "supabase-js@2 / Platform migration 20260714",
+    role: "游戏云端数据层。负责登录鉴权、排行榜、每局归档、事件复盘、城市配置与推广活动。",
     note: "数据与账号中台",
   },
   {
@@ -38,7 +40,7 @@ const PLATFORM_INFO = [
 ];
 const runtimeStatus = {
   github: { ok: null, msg: "检测中...", checkedAt: null, liveVersion: "-" },
-  netlify: { ok: null, msg: "检测中...", checkedAt: null, liveVersion: "-" },
+  pages: { ok: null, msg: "检测中...", checkedAt: null, liveVersion: "-" },
   supabase: { ok: null, msg: "检测中...", checkedAt: null, liveVersion: "-" },
   google: { ok: null, msg: "检测中...", checkedAt: null, liveVersion: "-" },
 };
@@ -98,6 +100,28 @@ function endedReasonLabel(code) {
   if (code === "reputation") return "名声崩盘";
   return code || "-";
 }
+function sourceLabel(source) {
+  return source === "account" ? "账号" : source === "guest" ? "游客" : source || "-";
+}
+function cityLabel(cityKey) {
+  return cityKey === "hangzhou" ? "杭州" : cityKey || "-";
+}
+function campaignStatusLabel(status) {
+  return ({ draft: "草稿", active: "投放中", paused: "已暂停", ended: "已结束" })[status] || status || "-";
+}
+function campaignTypeLabel(type) {
+  return ({ coupon: "优惠券", event: "本地活动", sponsor_news: "赞助新闻", sponsor_product: "赞助商品" })[type] || type || "-";
+}
+function csvList(value) {
+  return String(value || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean);
+}
+function datetimeLocal(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
 function selectedRunsList() {
   return [...selectedRunIds]
     .map((id) => selectedRunRows.get(String(id)))
@@ -111,14 +135,14 @@ function updateRunSelectionUi() {
   if (downloadBtn) downloadBtn.disabled = selectedCount === 0;
   const headerCheckbox = q("runsSelectAllCheckbox");
   if (!headerCheckbox) return;
-  const rowIds = currentRunRows.map((row) => String(row.id));
+  const rowIds = currentRunRows.map((row) => String(row.run_key));
   const selectedOnPage = rowIds.filter((id) => selectedRunIds.has(id)).length;
   headerCheckbox.checked = rowIds.length > 0 && selectedOnPage === rowIds.length;
   headerCheckbox.indeterminate = selectedOnPage > 0 && selectedOnPage < rowIds.length;
 }
 function setSelectionForCurrentPage(checked) {
   for (const row of currentRunRows) {
-    const id = String(row.id);
+    const id = String(row.run_key);
     if (checked) {
       selectedRunIds.add(id);
       selectedRunRows.set(id, row);
@@ -150,8 +174,10 @@ function buildRunMarkdown(run, events) {
   const lines = [
     `# 杭州浮生记对局记录`,
     ``,
-    `- 对局ID：${run.id}`,
+    `- 对局ID：${run.run_key}`,
     `- 玩家：${player}`,
+    `- 来源：${sourceLabel(run.source)}`,
+    `- 城市：${cityLabel(run.city_key)}（${run.city_version || "-"}）`,
     `- 开局时间：${createdAt}`,
     `- 分数：${cny(run.score)}`,
     `- 现金：${cny(run.cash)}`,
@@ -188,10 +214,10 @@ async function downloadSelectedRunsAsMarkdown() {
     const zip = window.JSZip ? new window.JSZip() : null;
     for (let i = 0; i < runs.length; i++) {
       const run = runs[i];
-      q("adminStatus").textContent = `导出中 ${i + 1}/${runs.length}：${run.display_name || run.email || run.id}`;
-      const events = await callRpc("admin_events", { p_run_id: run.id });
+      q("adminStatus").textContent = `导出中 ${i + 1}/${runs.length}：${run.display_name || run.email || run.run_key}`;
+      const events = await callRpc("admin_events_v2", { p_run_key: run.run_key });
       const content = buildRunMarkdown(run, events || []);
-      const fileName = `${compactDate(run.created_at)}_${safeFileName(run.display_name || run.email || "player")}_${safeFileName(run.id)}.md`;
+      const fileName = `${compactDate(run.created_at)}_${safeFileName(run.display_name || run.email || "player")}_${safeFileName(run.run_key)}.md`;
       if (zip) {
         zip.file(fileName, content);
       } else {
@@ -238,13 +264,18 @@ async function verifyAdmin() {
 function renderOverview(data) {
   const items = [
     ["用户数", data.users],
-    ["完成局数", data.game_runs],
+    ["全部对局", data.game_runs],
+    ["账号对局", data.account_runs],
+    ["游客对局", data.guest_runs],
     ["今日局数", data.runs_today],
     ["事件数", data.events],
     ["有战绩玩家", data.players_with_runs],
     ["最高分", cny(data.best_score)],
     ["平均分", cny(data.avg_score)],
-    ["Profiles", data.profiles],
+    ["城市版本", data.cities],
+    ["投放中活动", data.active_campaigns],
+    ["活动曝光", data.campaign_impressions],
+    ["活动点击", data.campaign_clicks],
   ];
   q("overview").innerHTML = items.map(([label, value]) => `<article class="metric"><span>${esc(label)}</span><strong>${esc(value)}</strong></article>`).join("");
 }
@@ -252,34 +283,74 @@ function renderUsers(rows) {
   q("usersHint").textContent = `${rows.length} 条`;
   q("usersTable").querySelector("tbody").innerHTML = rows.map((row) => `
     <tr>
-      <td>${esc(row.email)}</td>
+      <td><strong>${esc(row.email || row.player_key)}</strong></td>
       <td>${esc(row.display_name || "-")}</td>
-      <td>${esc(row.provider || "-")}</td>
+      <td>${esc(sourceLabel(row.source))}</td>
       <td>${esc(fmtDate(row.created_at))}</td>
-      <td>${esc(fmtDate(row.last_sign_in_at))}</td>
+      <td>${esc(fmtDate(row.last_seen_at))}</td>
       <td>${esc(row.run_count)}</td>
       <td>${esc(cny(row.best_score))}</td>
     </tr>
   `).join("");
+}
+function renderCities(rows) {
+  currentCityRows = rows || [];
+  q("citiesHint").textContent = `${rows.length} 个`;
+  q("citiesTable").querySelector("tbody").innerHTML = rows.length ? rows.map((row) => `
+    <tr>
+      <td><strong>${esc(row.display_name)}</strong><div class="cell-sub">${esc(row.city_key)}</div></td>
+      <td>${row.enabled ? "已启用" : "未启用"}</td>
+      <td>${row.is_default ? "是" : "-"}</td>
+      <td>${esc(row.content_version)}</td>
+      <td><code class="config-code">${esc(JSON.stringify(row.config || {}))}</code></td>
+      <td>${esc(fmtDate(row.updated_at))} <button class="run-action-btn city-edit-btn" data-city-key="${esc(row.city_key)}">编辑</button></td>
+    </tr>
+  `).join("") : `<tr><td colspan="6" class="empty-cell">还没有城市配置。</td></tr>`;
+  q("citiesTable").querySelectorAll(".city-edit-btn").forEach((button) => {
+    button.addEventListener("click", () => openCityEditor(
+      currentCityRows.find((row) => row.city_key === button.dataset.cityKey),
+    ));
+  });
+}
+function renderCampaigns(rows) {
+  currentCampaignRows = rows || [];
+  q("campaignsHint").textContent = `${rows.length} 条`;
+  q("campaignsTable").querySelector("tbody").innerHTML = rows.length ? rows.map((row) => `
+    <tr>
+      <td>${esc(campaignStatusLabel(row.status))}</td>
+      <td>${esc(cityLabel(row.city_key))}</td>
+      <td>${esc(campaignTypeLabel(row.campaign_type))}</td>
+      <td><strong>${esc(row.title)}</strong><div class="cell-sub">${esc(row.body)}</div></td>
+      <td>${esc(fmtDate(row.starts_at))} - ${esc(fmtDate(row.ends_at))}</td>
+      <td>${esc(row.weight)} / ${esc(row.frequency_cap)} <button class="run-action-btn campaign-edit-btn" data-campaign-id="${esc(row.id)}">编辑</button></td>
+    </tr>
+  `).join("") : `<tr><td colspan="6" class="empty-cell">还没有推广活动。</td></tr>`;
+  q("campaignsTable").querySelectorAll(".campaign-edit-btn").forEach((button) => {
+    button.addEventListener("click", () => openCampaignEditor(
+      currentCampaignRows.find((row) => row.id === button.dataset.campaignId),
+    ));
+  });
 }
 function renderRuns(rows) {
   currentRunRows = rows || [];
   q("runsHint").textContent = `${rows.length} 条`;
   q("runsTable").querySelector("tbody").innerHTML = rows.map((row) => `
     <tr>
-      <td><input class="run-select-checkbox" type="checkbox" data-run-id="${esc(row.id)}" ${selectedRunIds.has(String(row.id)) ? "checked" : ""} /></td>
+      <td><input class="run-select-checkbox" type="checkbox" data-run-id="${esc(row.run_key)}" ${selectedRunIds.has(String(row.run_key)) ? "checked" : ""} /></td>
       <td>${esc(fmtDate(row.created_at))}</td>
       <td>${esc(row.display_name || row.email || "-")}</td>
+      <td>${esc(sourceLabel(row.source))}</td>
+      <td>${esc(cityLabel(row.city_key))}<div class="cell-sub">${esc(row.city_version || "-")}</div></td>
       <td>${esc(cny(row.score))}</td>
       <td>${esc(cny(row.cash))}</td>
       <td>${esc(cny(row.debt))}</td>
       <td>${esc(row.days_used)}</td>
-      <td>${esc(row.ended_reason)}</td>
+      <td>${esc(endedReasonLabel(row.ended_reason))}</td>
       <td>${esc(row.event_count)}</td>
-      <td><button class="run-action-btn" data-run-id="${esc(row.id)}" data-run-name="${esc(row.display_name || row.email || "-")}" data-run-time="${esc(fmtDate(row.created_at))}">查看事件</button></td>
+      <td><button class="run-action-btn" data-run-id="${esc(row.run_key)}" data-run-name="${esc(row.display_name || row.email || "-")}" data-run-time="${esc(fmtDate(row.created_at))}">查看事件</button></td>
     </tr>
   `).join("");
-  const runMap = new Map(rows.map((row) => [String(row.id), row]));
+  const runMap = new Map(rows.map((row) => [String(row.run_key), row]));
   q("runsTable").querySelectorAll(".run-select-checkbox").forEach((checkbox) => {
     checkbox.addEventListener("change", () => {
       const id = String(checkbox.dataset.runId || "");
@@ -338,7 +409,7 @@ async function loadEventsForSelectedRun() {
   }
   try {
     q("eventsHint").textContent = "读取中...";
-    const events = await callRpc("admin_events", { p_run_id: selectedRunId });
+    const events = await callRpc("admin_events_v2", { p_run_key: selectedRunId });
     renderEvents(events || []);
   } catch (error) {
     q("eventsHint").textContent = "读取失败";
@@ -383,15 +454,16 @@ async function refreshServiceRuntime() {
     })(),
     (async () => {
       try {
-        const data = await checkJson("https://www.netlifystatus.com/api/v2/status.json");
-        runtimeStatus.netlify.ok = data?.status?.indicator === "none";
-        runtimeStatus.netlify.msg = data?.status?.description || "状态未知";
+        const data = await checkJson("https://www.githubstatus.com/api/v2/components.json");
+        const pages = data?.components?.find((component) => component.name === "GitHub Pages");
+        runtimeStatus.pages.ok = pages?.status === "operational";
+        runtimeStatus.pages.msg = pages?.status === "operational" ? "服务正常" : (pages?.status || "状态未知");
       } catch (error) {
-        runtimeStatus.netlify.ok = false;
-        runtimeStatus.netlify.msg = error.message;
+        runtimeStatus.pages.ok = false;
+        runtimeStatus.pages.msg = error.message;
       }
-      runtimeStatus.netlify.checkedAt = Date.now();
-      runtimeStatus.netlify.liveVersion = "Status API v2";
+      runtimeStatus.pages.checkedAt = Date.now();
+      runtimeStatus.pages.liveVersion = "Pages Actions v4";
     })(),
     (async () => {
       try {
@@ -439,7 +511,7 @@ function renderPlatformView() {
       <div class="flow-arrow">→</div>
       <div class="flow-node"><strong>GitHub</strong><span>版本管理与协作</span></div>
       <div class="flow-arrow">→</div>
-      <div class="flow-node"><strong>Netlify</strong><span>Web 自动发布</span></div>
+      <div class="flow-node"><strong>GitHub Pages</strong><span>Web 自动发布</span></div>
       <div class="flow-arrow">→</div>
       <div class="flow-node"><strong>玩家</strong><span>访问网页游戏</span></div>
     </div>
@@ -465,17 +537,112 @@ function renderPlatformView() {
     </article>
   `).join("");
 }
+
+function openCityEditor(row = null) {
+  const item = row || {};
+  q("cityKeyInput").value = item.city_key || "";
+  q("cityKeyInput").disabled = Boolean(item.city_key);
+  q("cityNameInput").value = item.display_name || "";
+  q("cityVersionInput").value = item.content_version || "v1";
+  q("cityPriorityInput").value = String(item.priority || 100);
+  q("cityCountriesInput").value = (item.country_codes || ["CN"]).join(",");
+  q("cityRegionsInput").value = (item.region_patterns || []).join(",");
+  q("cityPatternsInput").value = (item.city_patterns || []).join(",");
+  q("cityEnabledInput").checked = item.enabled ?? true;
+  q("cityDefaultInput").checked = Boolean(item.is_default);
+  q("cityConfigInput").value = JSON.stringify(item.config || {}, null, 2);
+  q("cityEditor").classList.remove("hidden");
+}
+function closeCityEditor() {
+  q("cityEditor").classList.add("hidden");
+}
+async function saveCityEditor(event) {
+  event.preventDefault();
+  try {
+    const config = JSON.parse(q("cityConfigInput").value || "{}");
+    await callRpc("admin_upsert_city", {
+      p_city_key: q("cityKeyInput").value.trim(),
+      p_display_name: q("cityNameInput").value.trim(),
+      p_enabled: q("cityEnabledInput").checked,
+      p_is_default: q("cityDefaultInput").checked,
+      p_content_version: q("cityVersionInput").value.trim(),
+      p_config: config,
+      p_country_codes: csvList(q("cityCountriesInput").value),
+      p_region_patterns: csvList(q("cityRegionsInput").value),
+      p_city_patterns: csvList(q("cityPatternsInput").value),
+      p_priority: Number(q("cityPriorityInput").value || 100),
+    });
+    closeCityEditor();
+    q("adminStatus").textContent = "城市配置已保存。";
+    await refresh();
+  } catch (error) {
+    q("adminStatus").textContent = `城市保存失败：${error.message || error}`;
+  }
+}
+function openCampaignEditor(row = null) {
+  const item = row || {};
+  q("campaignIdInput").value = item.id || "";
+  q("campaignCityInput").value = item.city_key || "hangzhou";
+  q("campaignTypeInput").value = item.campaign_type || "sponsor_news";
+  q("campaignStatusInput").value = item.status || "draft";
+  q("campaignWeightInput").value = String(item.weight || 100);
+  q("campaignCapInput").value = String(item.frequency_cap || 1);
+  q("campaignStartsInput").value = datetimeLocal(item.starts_at);
+  q("campaignEndsInput").value = datetimeLocal(item.ends_at);
+  q("campaignActionLabelInput").value = item.action_label || "";
+  q("campaignTitleInput").value = item.title || "";
+  q("campaignBodyInput").value = item.body || "";
+  q("campaignActionUrlInput").value = item.action_url || "";
+  q("campaignPayloadInput").value = JSON.stringify(item.payload || { placement: "news" }, null, 2);
+  q("campaignEditor").classList.remove("hidden");
+}
+function closeCampaignEditor() {
+  q("campaignEditor").classList.add("hidden");
+}
+async function saveCampaignEditor(event) {
+  event.preventDefault();
+  try {
+    const payload = JSON.parse(q("campaignPayloadInput").value || "{}");
+    const starts = q("campaignStartsInput").value;
+    const ends = q("campaignEndsInput").value;
+    await callRpc("admin_upsert_campaign", {
+      p_id: q("campaignIdInput").value || null,
+      p_city_key: q("campaignCityInput").value.trim() || null,
+      p_campaign_type: q("campaignTypeInput").value,
+      p_status: q("campaignStatusInput").value,
+      p_title: q("campaignTitleInput").value.trim(),
+      p_body: q("campaignBodyInput").value.trim(),
+      p_action_label: q("campaignActionLabelInput").value.trim() || null,
+      p_action_url: q("campaignActionUrlInput").value.trim() || null,
+      p_weight: Number(q("campaignWeightInput").value || 100),
+      p_frequency_cap: Number(q("campaignCapInput").value || 1),
+      p_starts_at: starts ? new Date(starts).toISOString() : null,
+      p_ends_at: ends ? new Date(ends).toISOString() : null,
+      p_payload: payload,
+    });
+    closeCampaignEditor();
+    q("adminStatus").textContent = "推广活动已保存。";
+    await refresh();
+  } catch (error) {
+    q("adminStatus").textContent = `活动保存失败：${error.message || error}`;
+  }
+}
+
 async function refresh() {
   if (!adminVerified) return;
   q("adminStatus").textContent = "读取中...";
   try {
-    const [overview, users, runs, eventSummary] = await Promise.all([
+    const [overview, users, runs, eventSummary, cities, campaigns] = await Promise.all([
       callRpc("admin_overview"),
-      callRpc("admin_users"),
-      callRpc("admin_runs"),
-      callRpc("admin_event_summary"),
+      callRpc("admin_players_v2"),
+      callRpc("admin_runs_v2"),
+      callRpc("admin_event_summary_v2"),
+      callRpc("admin_cities"),
+      callRpc("admin_campaigns"),
     ]);
     renderOverview(overview);
+    renderCities(cities);
+    renderCampaigns(campaigns);
     renderUsers(users);
     renderRuns(runs);
     renderEventSummary(eventSummary);
@@ -527,4 +694,10 @@ q("runSelectAllBtn").addEventListener("click", () => { setSelectionForCurrentPag
 q("runClearSelectionBtn").addEventListener("click", () => { clearRunSelection(); });
 q("runsSelectAllCheckbox").addEventListener("change", (event) => { setSelectionForCurrentPage(event.target.checked); });
 q("runDownloadMdBtn").addEventListener("click", () => { downloadSelectedRunsAsMarkdown(); });
+q("cityCreateBtn").addEventListener("click", () => { openCityEditor(); });
+q("cityEditorCancel").addEventListener("click", () => { closeCityEditor(); });
+q("cityEditorForm").addEventListener("submit", saveCityEditor);
+q("campaignCreateBtn").addEventListener("click", () => { openCampaignEditor(); });
+q("campaignEditorCancel").addEventListener("click", () => { closeCampaignEditor(); });
+q("campaignEditorForm").addEventListener("submit", saveCampaignEditor);
 init();

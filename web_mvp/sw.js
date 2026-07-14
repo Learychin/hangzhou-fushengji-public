@@ -1,13 +1,18 @@
 const CACHE_PREFIX = "bfsj-shell";
-const CACHE_NAME = `${CACHE_PREFIX}-network-first-20260627-trade-45d-1`;
+const CACHE_NAME = `${CACHE_PREFIX}-network-first-20260715-platform-3`;
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
+  "./layout-v2.css",
   "./main.js",
+  "./platform.js",
   "./config.js",
   "./manifest.webmanifest",
   "./app-icon.svg",
+  "./app-icon-180.png",
+  "./app-icon-192.png",
+  "./app-icon-512.png",
 ];
 
 self.addEventListener("install", (event) => {

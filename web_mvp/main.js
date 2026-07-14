@@ -1,5 +1,6 @@
 "use strict";
-const GAME_VERSION_CODE = "HZFSJ-TRADE-45D-RC1";
+(function initHZFSJEngine() {
+const GAME_VERSION_CODE = "HZFSJ-TRADE-45D-RC2";
 const TOTAL_DAYS = 45;
 const TARGET_SESSION_MINUTES = 15;
 const TARGET_SECONDS_PER_TURN = Math.round((TARGET_SESSION_MINUTES * 60) / TOTAL_DAYS);
@@ -9,6 +10,13 @@ const CITY_EXPANSION_ROUTES = [
   { score: 10000000, city: "宁波", label: "宁波浮生记", hook: "港口、外贸、海鲜市集和甬江夜色" },
   { score: 50000000, city: "深圳", label: "深圳浮生记", hook: "硬件、低空经济、城中村和湾区速度" },
   { score: 100000000, city: "北京", label: "北京浮生记", hook: "中关村、胡同、展会和全国资源局" },
+];
+const CAREER_STAGES = [
+  { id: "runner", name: "跑街学徒", minScore: -3000, focus: "先把净身价从负数拉回零" },
+  { id: "survivor", name: "站稳脚跟", minScore: 0, focus: "低买高卖，冲击 10 万" },
+  { id: "buyer", name: "城市买手", minScore: 100000, focus: "控制仓储成本，冲击 100 万" },
+  { id: "firm", name: "杭城商号", minScore: 1000000, focus: "集中做高价值机会，冲击 1000 万" },
+  { id: "legend", name: "钱塘传奇", minScore: 10000000, focus: "守住利润，冲击跨城资格" },
 ];
 const STARTER_BUFFER_DAYS = Math.ceil(TOTAL_DAYS * 0.22);
 const STARTER_CASH_FLOOR = 900;
@@ -23,30 +31,87 @@ const LOCAL_RUN_STATS_KEY = "bfsj_local_run_stats";
 const ENABLE_RANDOM_EVENT_POPUPS = false;
 const ENABLE_STATUS_SYSTEM = false;
 const HIDE_AUTH_UI = true;
+const MARKET_NEWS_SPAWN_RATE = 22;
+const MARKET_NEWS_MIN_GAP_DAYS = 2;
+const MARKET_NEWS_FORCE_AFTER_DAYS = 5;
 const INITIAL_CAPACITY = 110;
 const MAX_CAPACITY = 500;
 const CAPACITY_STEP = 10;
 const MARKET_BUY_DISPLAY_LIMIT = 9;
 const LOCAL_RESALE_RATE = 0.9;
-const WAREHOUSE_MANAGEMENT_FEE_PER_EXTRA_CAPACITY = 120;
+const MAX_NEWS_PRICE_MULTIPLIER = 12;
+const WAREHOUSE_FEE_TIERS = [
+  { uptoExtra: 30, unitFee: 8 },
+  { uptoExtra: 80, unitFee: 30 },
+  { uptoExtra: 180, unitFee: 120 },
+  { uptoExtra: Infinity, unitFee: 280 },
+];
 
 function localResalePrice(buyPrice) {
   return Math.max(1, Math.floor((Number(buyPrice) || 0) * LOCAL_RESALE_RATE));
 }
 
+function marketDepthForGoods(goods) {
+  const base = Math.max(1, Number(goods?.base) || 1);
+  if (goods?.kind === "financial") return base >= 12000 ? 12 : 20;
+  if (goods?.kind === "virtual") return base >= 10000 ? 18 : 35;
+  return base >= 3000 ? 24 : 70;
+}
+
+function marketSaleQuote(goods, marketPrice, count, alreadySold = 0) {
+  const unit = Math.max(1, Math.floor(Number(marketPrice) || 0));
+  const requested = Math.max(0, Math.floor(Number(count) || 0));
+  const prior = Math.max(0, Math.floor(Number(alreadySold) || 0));
+  const depth = marketDepthForGoods(goods);
+  const tiers = [
+    { upto: depth, rate: 1 },
+    { upto: depth * 2, rate: 0.92 },
+    { upto: Infinity, rate: 0.78 },
+  ];
+  let remaining = requested;
+  let cursor = prior;
+  let total = 0;
+  for (const tier of tiers) {
+    if (remaining <= 0) break;
+    if (cursor >= tier.upto) continue;
+    const available = Number.isFinite(tier.upto) ? tier.upto - cursor : remaining;
+    const take = Math.min(remaining, available);
+    total += take * Math.max(1, Math.floor(unit * tier.rate));
+    cursor += take;
+    remaining -= take;
+  }
+  const fullPriceTotal = requested * unit;
+  return {
+    count: requested,
+    total,
+    avgUnit: requested > 0 ? Math.floor(total / requested) : 0,
+    liquidityCost: Math.max(0, fullPriceTotal - total),
+    depth,
+    alreadySold: prior,
+  };
+}
+
 function warehouseDailyFeeForCapacity(capacity) {
   const extra = Math.max(0, Math.floor(Number(capacity) || 0) - INITIAL_CAPACITY);
-  return extra * WAREHOUSE_MANAGEMENT_FEE_PER_EXTRA_CAPACITY;
+  let fee = 0;
+  let previous = 0;
+  for (const tier of WAREHOUSE_FEE_TIERS) {
+    if (extra <= previous) break;
+    const size = Math.min(extra, tier.uptoExtra) - previous;
+    fee += size * tier.unitFee;
+    previous = tier.uptoExtra;
+  }
+  return Math.floor(fee);
 }
 
 function capacityStepCost(afterCap) {
-  let cost = 22000;
-  if (afterCap > 180) cost = 32000;
-  if (afterCap > 240) cost = 48000;
-  if (afterCap > 320) cost = 68000;
-  if (afterCap > 400) cost = 92000;
-  if (afterCap > 460) cost = 128000;
-  return cost;
+  if (afterCap <= 140) return 9000;
+  if (afterCap <= 180) return 18000;
+  if (afterCap <= 240) return 42000;
+  if (afterCap <= 320) return 90000;
+  if (afterCap <= 400) return 180000;
+  if (afterCap <= 460) return 360000;
+  return 650000;
 }
 
 function normalizeCapacityTarget(targetCap, currentCap = 0) {
@@ -75,6 +140,30 @@ function buildCapacityPlan(currentCap, targetCap) {
     steps,
     cost,
     detail,
+  };
+}
+
+function getCareerStageState(score, achievedIndex = 0) {
+  const value = Number.isFinite(Number(score)) ? Number(score) : 0;
+  let earnedIndex = 0;
+  for (let index = 1; index < CAREER_STAGES.length; index += 1) {
+    if (value >= CAREER_STAGES[index].minScore) earnedIndex = index;
+  }
+  const rememberedIndex = Math.max(0, Math.min(CAREER_STAGES.length - 1, Math.floor(Number(achievedIndex) || 0)));
+  const index = Math.max(earnedIndex, rememberedIndex);
+  const stage = CAREER_STAGES[index];
+  const next = CAREER_STAGES[index + 1] || null;
+  const floor = Number.isFinite(stage.minScore) ? stage.minScore : Math.min(0, value);
+  const progress = next
+    ? Math.max(0, Math.min(100, ((value - floor) / Math.max(1, next.minScore - floor)) * 100))
+    : 100;
+  return {
+    index,
+    earnedIndex,
+    stage,
+    next,
+    progress,
+    gap: next ? Math.max(0, next.minScore - value) : 0,
   };
 }
 
@@ -209,6 +298,9 @@ class GameEngine {
     this.coffeeCost = 30;
     this.rumorBuff = null;
     this.activeNews = [];
+    this.lastNewsSpawnDay = 0;
+    this.lastNewsPopups = [];
+    this.lastNewsPopupStrength = 0;
     this.todayNews = null;
     this.newsPool = [
       {
@@ -299,7 +391,11 @@ class GameEngine {
       day: 0,
     };
     this.tradeCount = 0;
+    this.marketSoldToday = {};
+    this.careerStageIndex = 0;
     this.starterBufferUsed = 0;
+    this.magicEventQuota = this.rollMagicEventQuota();
+    this.magicEventTriggered = 0;
     this.gameOver = false;
     this.lastTrade = null;
     this.rollLocationMultipliers();
@@ -311,6 +407,14 @@ class GameEngine {
   get score() { return this.cash + this.bank - this.debt; }
   get dayText() { return `杭州浮生(${this.daysUsed}/${TOTAL_DAYS}天)`; }
   get cityLabels() { return this.locations; }
+
+  rollMagicEventQuota() {
+    const r = this.rnd(100);
+    if (r < 25) return 0;
+    if (r < 80) return 1;
+    if (r < 97) return 2;
+    return 3;
+  }
 
   addLog(msg, type = "log", payload = {}) {
     this.logs.push(msg);
@@ -350,6 +454,7 @@ class GameEngine {
       totalDays: TOTAL_DAYS,
       currentLoc: this.currentLoc,
       starterBufferUsed: this.starterBufferUsed || 0,
+      careerStageIndex: this.careerStageIndex || 0,
     };
   }
 
@@ -363,6 +468,17 @@ class GameEngine {
       else if (typeof value === "object") out[key] = value;
     }
     return out;
+  }
+
+  rollGoodsPrice(g) {
+    const base = Math.max(1, Number(g?.base) || 1);
+    const span = Math.max(1, Number(g?.span) || 1);
+    const r = this.rnd(100);
+    let ratio;
+    if (r < 15) ratio = 0.12 + this.rnd(23) / 100; // 0.12 ~ 0.34
+    else if (r < 25) ratio = 0.66 + this.rnd(27) / 100; // 0.66 ~ 0.92
+    else ratio = 0.35 + this.rnd(31) / 100; // 0.35 ~ 0.65
+    return Math.max(1, Math.floor(base + span * ratio));
   }
 
   makeDrugPrices(leaveout) {
@@ -417,30 +533,51 @@ class GameEngine {
     const prices = {};
     for (const id of selectedIds) {
       const g = this.goods[id];
-      prices[id] = g.base + this.rnd(g.span);
+      prices[id] = this.rollGoodsPrice(g);
     }
     for (const item of this.inv || []) {
       if (prices[item.id] > 0) continue;
       const g = this.goods.find((x) => x.id === item.id);
-      if (g) prices[g.id] = g.base + this.rnd(g.span);
+      if (g) prices[g.id] = this.rollGoodsPrice(g);
     }
 
     this.market = this.goods
       .filter((g) => prices[g.id] > 0)
       .map((g) => ({ id: g.id, name: g.name, price: prices[g.id], kind: g.kind, weight: g.weight }));
+    this.limitHighValueMarketSupply();
   }
 
   displayDrugs() { this.market.sort((a, b) => a.id - b.id); }
+
+  highValueMarketCap() {
+    const day = this.daysUsed;
+    if (day < 15) return 0;
+    if (day < 25) return 1;
+    if (day < 35) return 2;
+    return 3;
+  }
+
+  limitHighValueMarketSupply() {
+    const heldIds = new Set((this.inv || []).map((item) => item.id));
+    const cap = this.highValueMarketCap();
+    let seen = 0;
+    this.market = (this.market || []).filter((m) => {
+      const g = this.goods.find((x) => x.id === m.id);
+      if (!g || g.base < 7000 || heldIds.has(m.id)) return true;
+      seen += 1;
+      return seen <= cap;
+    });
+  }
 
   rollLocationMultipliers() {
     this.locMultipliers = [];
     for (let loc = 0; loc < this.locations.length; loc++) {
       const row = {};
       for (const g of this.goods) {
-        // 普通波动区间更稳，少量点位出现大行情
-        let k = 0.7 + this.rnd(71) / 100; // 0.70 ~ 1.40
-        if (this.rnd(100) < 18) {
-          k = 0.35 + this.rnd(146) / 100; // 0.35 ~ 1.80 (稀有大波动)
+        // 常规地区差价收窄；大波动交给新闻和离谱事件，玩家更容易理解原因。
+        let k = 0.86 + this.rnd(31) / 100; // 0.86 ~ 1.16
+        if (this.rnd(100) < 9) {
+          k = 0.62 + this.rnd(77) / 100; // 0.62 ~ 1.38
         }
         row[g.id] = k;
       }
@@ -450,8 +587,8 @@ class GameEngine {
       const { targetLoc, goodId, direction } = this.rumorBuff;
       const i = Math.max(0, targetLoc - 1);
       if (this.locMultipliers[i]) {
-        if (direction === "up") this.locMultipliers[i][goodId] = Math.max(this.locMultipliers[i][goodId], 1.45 + this.rnd(36) / 100);
-        else this.locMultipliers[i][goodId] = Math.min(this.locMultipliers[i][goodId], 0.55 + this.rnd(26) / 100);
+        if (direction === "up") this.locMultipliers[i][goodId] = Math.max(this.locMultipliers[i][goodId], 1.34 + this.rnd(29) / 100);
+        else this.locMultipliers[i][goodId] = Math.min(this.locMultipliers[i][goodId], 0.58 + this.rnd(23) / 100);
       }
       this.rumorBuff.turnsLeft -= 1;
       if (this.rumorBuff.turnsLeft <= 0) this.rumorBuff = null;
@@ -476,7 +613,7 @@ class GameEngine {
       if (existing.has(item.id)) continue;
       const g = this.goods.find((x) => x.id === item.id);
       if (!g) continue;
-      const basePrice = g.base + this.rnd(g.span);
+      const basePrice = this.rollGoodsPrice(g);
       const k = spread[g.id] ?? 1;
       this.market.push({
         id: g.id,
@@ -494,11 +631,13 @@ class GameEngine {
   prepareNewsForDay() {
     const currentDay = this.nextDayNumber;
     this.activeNews = (this.activeNews || []).filter((n) => n.expiresOnDay >= currentDay);
+    this.lastNewsPopups = [];
+    this.lastNewsPopupStrength = 0;
 
-    const earlyCutoff = Math.ceil(TOTAL_DAYS / 3);
-    const midCutoff = Math.ceil((TOTAL_DAYS * 2) / 3);
-    const spawnRate = currentDay <= earlyCutoff ? 78 : currentDay <= midCutoff ? 70 : 62;
-    if (this.rnd(100) < spawnRate) {
+    const daysSinceNews = currentDay - Math.max(0, Number(this.lastNewsSpawnDay || 0));
+    const gapReady = this.lastNewsSpawnDay === 0 || daysSinceNews >= MARKET_NEWS_MIN_GAP_DAYS;
+    const forceNews = this.lastNewsSpawnDay > 0 && daysSinceNews >= MARKET_NEWS_FORCE_AFTER_DAYS;
+    if (gapReady && (forceNews || this.rnd(100) < MARKET_NEWS_SPAWN_RATE)) {
       const tpl = this.newsPool[this.rnd(this.newsPool.length)];
       const duration = tpl.durationMin + this.rnd(tpl.durationMax - tpl.durationMin + 1);
       const impacts = tpl.effects.map((effect) => {
@@ -519,6 +658,7 @@ class GameEngine {
         impacts,
       };
       this.activeNews.push(news);
+      this.queueNewsPopup(news);
       const impactText = impacts
         .map((x) => `${this.goods[x.goodsId]?.name || "未知商品"}${x.pct > 0 ? "+" : ""}${x.pct}%`)
         .join("，");
@@ -528,7 +668,101 @@ class GameEngine {
         impacts,
       });
     }
+    this.maybeCreateSmallGoodsSwingNews(currentDay);
+    this.maybeCreateHeldJackpotNews(currentDay);
     this.refreshTodayNews(currentDay);
+  }
+
+  queueNewsPopup(news) {
+    if (!news) return;
+    const newsDay = Number(news.day || this.nextDayNumber);
+    const sameDay = newsDay === Number(this.lastNewsSpawnDay || 0);
+    if (!sameDay && this.lastNewsSpawnDay > 0
+      && newsDay - this.lastNewsSpawnDay < MARKET_NEWS_MIN_GAP_DAYS) return;
+    const impacts = (news.impacts || []).map((impact) => {
+      const goods = this.goods.find((item) => item.id === impact.goodsId);
+      return `${goods?.name || "未知商品"} ${impact.pct > 0 ? "+" : ""}${impact.pct}%`;
+    });
+    const strength = Math.max(0, ...(news.impacts || []).map((impact) => Math.abs(Number(impact.pct || 0))));
+    if (this.lastNewsPopups.length && strength <= this.lastNewsPopupStrength) return;
+    this.lastNewsPopupStrength = strength;
+    this.lastNewsSpawnDay = newsDay;
+    this.lastNewsPopups = [
+      `${news.title}\n${news.desc}\n${impacts.join("，")} · 影响至第${news.expiresOnDay}天`,
+    ];
+  }
+
+  maybeCreateSmallGoodsSwingNews(currentDay) {
+    if (currentDay < 3 || this.rnd(100) >= 14) return false;
+    const candidates = this.goods.filter((g) => g.base <= 2500);
+    if (!candidates.length) return false;
+    const goods = candidates[this.rnd(candidates.length)];
+    const isUp = this.rnd(100) < 64;
+    const pct = isUp ? 45 + this.rnd(71) : -(25 + this.rnd(36));
+    const duration = 2 + this.rnd(2);
+    const title = isUp ? "【小商品爆单】" : "【小商品塌价】";
+    const desc = isUp
+      ? `${goods.name} 被短视频和社群团购突然带火。`
+      : `${goods.name} 同款铺货太多，渠道开始压价。`;
+    const news = {
+      id: `small-${currentDay}-${Date.now()}-${this.rnd(9999)}`,
+      title,
+      desc,
+      day: currentDay,
+      expiresOnDay: currentDay + duration - 1,
+      impacts: [{ goodsId: goods.id, pct, tag: isUp ? "爆单" : "塌价" }],
+    };
+    this.activeNews.push(news);
+    this.queueNewsPopup(news);
+    this.addLog(`${title} ${desc}（${goods.name}${pct > 0 ? "+" : ""}${pct}%）`, "market_news", {
+      day: currentDay,
+      expires_on_day: news.expiresOnDay,
+      impacts: news.impacts,
+      small_goods_swing: true,
+    });
+    return true;
+  }
+
+  maybeCreateHeldJackpotNews(currentDay) {
+    if (currentDay < 24) return false;
+    const candidates = (this.inv || []).filter((item) => {
+      const goods = this.goods.find((g) => g.id === item.id);
+      return goods && goods.base <= 12000;
+    });
+    if (candidates.length === 0) return false;
+    if ((this.magicEventTriggered || 0) >= (this.magicEventQuota || 0)) return false;
+    const remainingQuota = (this.magicEventQuota || 0) - (this.magicEventTriggered || 0);
+    const remainingDays = Math.max(1, TOTAL_DAYS - currentDay + 1);
+    const chance = Math.min(18, Math.max(4, Math.ceil((remainingQuota / remainingDays) * 100)));
+    if (this.rnd(100) >= chance) return false;
+    const held = candidates[this.rnd(candidates.length)];
+    const goods = this.goods.find((g) => g.id === held.id);
+    if (!goods) return false;
+    const superSpike = currentDay >= 36 && this.rnd(100) < 12;
+    const pct = superSpike ? 700 + this.rnd(501) : 180 + this.rnd(241);
+    const duration = 1 + this.rnd(2);
+    const news = {
+      id: `jackpot-${currentDay}-${Date.now()}-${this.rnd(9999)}`,
+      title: "【离谱爆红】",
+      desc: `你仓库里的 ${goods.name} 突然被全城疯抢。`,
+      day: currentDay,
+      expiresOnDay: currentDay + duration - 1,
+      impacts: [{ goodsId: goods.id, pct, tag: superSpike ? "神局" : "爆红" }],
+    };
+    this.magicEventTriggered = (this.magicEventTriggered || 0) + 1;
+    this.activeNews.push(news);
+    this.queueNewsPopup(news);
+    this.addLog(`${news.title} ${news.desc}（${goods.name}+${pct}%）`, "market_news", {
+      day: currentDay,
+      expires_on_day: news.expiresOnDay,
+      impacts: news.impacts,
+      held_jackpot: true,
+      magic_index: this.magicEventTriggered,
+      magic_quota: this.magicEventQuota,
+      super_spike: superSpike,
+      held_count: held.count,
+    });
+    return true;
   }
 
   refreshTodayNews(currentDay) {
@@ -577,7 +811,8 @@ class GameEngine {
       if (news.expiresOnDay < currentDay) continue;
       for (const impact of news.impacts || []) {
         const prev = map.get(impact.goodsId) ?? 1;
-        map.set(impact.goodsId, prev * (1 + impact.pct / 100));
+        const next = prev * (1 + impact.pct / 100);
+        map.set(impact.goodsId, Math.max(0.2, Math.min(MAX_NEWS_PRICE_MULTIPLIER, next)));
       }
     }
     return map;
@@ -881,13 +1116,24 @@ class GameEngine {
     let cost = 0;
     let localCount = 0;
     let marketCount = 0;
+    let liquidityCost = 0;
+    let marketDepth = 0;
+    const goods = this.goods.find((g) => g.id === goodsId);
+    const alreadySold = Math.max(0, Math.floor(Number(this.marketSoldToday?.[goodsId]) || 0));
     for (const lot of lots) {
       if (remaining <= 0) break;
       const take = Math.min(remaining, lot.count);
       const isLocal = lot.buyLoc > 0 && lot.buyLoc === this.currentLoc;
       if (!isLocal && !mk) return { ok: false, reason: "goods_not_in_market", count: n, total: 0, pnl: 0, pnlPct: 0 };
       const unitPrice = this.sellUnitPriceForLot(lot, mk?.price || 0);
-      total += take * unitPrice;
+      if (isLocal) {
+        total += take * unitPrice;
+      } else {
+        const quote = marketSaleQuote(goods, unitPrice, take, alreadySold + marketCount);
+        total += quote.total;
+        liquidityCost += quote.liquidityCost;
+        marketDepth = quote.depth;
+      }
       cost += take * lot.buyPrice;
       if (isLocal) localCount += take;
       else marketCount += take;
@@ -898,7 +1144,21 @@ class GameEngine {
     const avgUnit = n > 0 ? Math.floor(total / n) : 0;
     const pnl = total - cost;
     const pnlPct = cost > 0 ? pnl / cost : 0;
-    return { ok: true, count: n, total, cost, avgCost, avgUnit, pnl, pnlPct, localCount, marketCount };
+    return {
+      ok: true,
+      count: n,
+      total,
+      cost,
+      avgCost,
+      avgUnit,
+      pnl,
+      pnlPct,
+      localCount,
+      marketCount,
+      liquidityCost,
+      marketDepth,
+      marketSoldBefore: alreadySold,
+    };
   }
   dailyWarehouseFee() {
     return warehouseDailyFeeForCapacity(this.coat);
@@ -916,15 +1176,15 @@ class GameEngine {
       shortfall,
       capacity: this.coat,
       extra_capacity: Math.max(0, this.coat - INITIAL_CAPACITY),
-      unit_fee: WAREHOUSE_MANAGEMENT_FEE_PER_EXTRA_CAPACITY,
+      fee_model: "tiered",
     });
     return fee;
   }
   buildFinalSettlementMarket() {
     const existing = new Map(this.market.map((m) => [m.id, m.price]));
     this.market = this.goods.map((g) => {
-      const fallback = g.base + this.rnd(g.span);
-      const rawPrice = existing.get(g.id) ?? fallback;
+      const fallbackPrice = this.rollGoodsPrice(g);
+      const rawPrice = existing.get(g.id) ?? fallbackPrice;
       return {
         id: g.id,
         name: g.name,
@@ -941,6 +1201,7 @@ class GameEngine {
     if (this.gameOver) return;
     if (this.currentLoc === locIdx) return;
     this.currentLoc = locIdx;
+    this.marketSoldToday = {};
     this.lastRumorLoc = locIdx;
     this.rollLocationMultipliers();
     this.prepareNewsForDay();
@@ -982,10 +1243,7 @@ class GameEngine {
     const max = maxAffordableBuyCount(this.cash, mk.price, Math.floor((this.coat - this.totalItems) / (weight || 1)));
     if (max <= 0) return this.addLog("现金不足或房子已满。", "input_error", { action: "buy", reason: "insufficient_cash_or_capacity", goods_id: goodsId });
     const n = Math.max(1, Math.min(count, max));
-    let unitPrice = mk.price;
-    if (n >= 80) unitPrice = Math.floor(unitPrice * 0.88);
-    else if (n >= 50) unitPrice = Math.floor(unitPrice * 0.92);
-    else if (n >= 20) unitPrice = Math.floor(unitPrice * 0.97);
+    const unitPrice = discountedBuyUnitPrice(mk.price, n);
     const totalCost = n * unitPrice;
     this.cash -= totalCost;
     this.totalItems += n * (weight || 1);
@@ -1005,8 +1263,9 @@ class GameEngine {
         lots: [{ count: n, buyPrice: unitPrice, buyLoc: this.currentLoc }],
       });
     }
-    const discount = n >= 80 ? 12 : n >= 50 ? 8 : n >= 20 ? 3 : 0;
-    const suffix = discount ? `（批发折扣 ${discount}%）` : "";
+    const discount = Math.max(0, mk.price - unitPrice);
+    const discountPct = mk.price > 0 ? Math.round((discount / mk.price) * 100) : 0;
+    const suffix = discountPct > 0 ? `（批量议价 -${discountPct}%）` : "";
     this.addLog(`买入 ${mk.name} x${n}${suffix}`, "trade", {
       side: "buy",
       goods_id: goodsId,
@@ -1015,6 +1274,8 @@ class GameEngine {
       unit_price: unitPrice,
       total: totalCost,
       discount,
+      discount_pct: discountPct,
+      discount_total: discount * n,
     });
     this.applyTradeImpact(goodsId, n, "buy");
     this.applyOneTradeEvent(goodsId, n, totalCost);
@@ -1051,6 +1312,10 @@ class GameEngine {
     this.recalcInventoryItem(item);
     if (item.count <= 0) this.inv.splice(invIdx, 1);
     this.cash += preview.total;
+    if (preview.marketCount > 0) {
+      this.marketSoldToday = this.marketSoldToday || {};
+      this.marketSoldToday[goodsId] = preview.marketSoldBefore + preview.marketCount;
+    }
     this.totalItems = Math.max(0, this.totalItems - n * (weight || 1));
     if (goodsId === 4) this.fame = Math.max(0, this.fame - 7);
     if (goodsId === 3) this.fame = Math.max(0, this.fame - 10);
@@ -1066,6 +1331,9 @@ class GameEngine {
       local_resale_count: preview.localCount,
       market_resale_count: preview.marketCount,
       local_resale_rate: LOCAL_RESALE_RATE,
+      market_depth: preview.marketDepth,
+      market_sold_before: preview.marketSoldBefore,
+      liquidity_cost: preview.liquidityCost,
     });
     this.applyTradeImpact(goodsId, n, "sell");
     this.applyOneTradeEvent(goodsId, n, preview.total);
@@ -1170,11 +1438,133 @@ class GameEngine {
     });
     return { ok: true, plan, affordableTarget: this.coat };
   }
+  downsizeCapacityTo(targetCap) {
+    if (this.coat <= INITIAL_CAPACITY) {
+      return { ok: false, reason: "min_capacity", before: this.coat, after: this.coat };
+    }
+    const raw = Number(targetCap);
+    const stepped = Number.isFinite(raw) ? Math.floor(raw / CAPACITY_STEP) * CAPACITY_STEP : this.coat - CAPACITY_STEP;
+    const inventoryFloor = Math.ceil(Math.max(0, this.totalItems || 0) / CAPACITY_STEP) * CAPACITY_STEP;
+    const minCap = Math.max(INITIAL_CAPACITY, inventoryFloor);
+    const target = Math.max(minCap, Math.min(this.coat - CAPACITY_STEP, stepped));
+    if (target >= this.coat) {
+      return {
+        ok: false,
+        reason: "inventory_too_full",
+        before: this.coat,
+        after: this.coat,
+        min_capacity: minCap,
+        total_items: this.totalItems,
+      };
+    }
+    const before = this.coat;
+    const beforeFee = this.dailyWarehouseFee();
+    this.coat = target;
+    const afterFee = this.dailyWarehouseFee();
+    this.addLog(`退仓成功，仓位从 ${before} 降到 ${this.coat}（每日管理费 ${beforeFee} -> ${afterFee}）`, "capacity_downsize", {
+      before,
+      after: this.coat,
+      before_fee: beforeFee,
+      after_fee: afterFee,
+      saved_daily_fee: Math.max(0, beforeFee - afterFee),
+      total_items: this.totalItems,
+    });
+    return { ok: true, before, after: this.coat, beforeFee, afterFee };
+  }
+  downsizeCapacity() {
+    return this.downsizeCapacityTo(this.coat - CAPACITY_STEP);
+  }
   wangba() { if (this.wangbaVisits > 3) return this.addLog("共享工位老板提醒：今天别再熬了。", "input_error", { action: "side_job", reason: "daily_limit" }); if (this.cash < 20) return this.addLog("至少要带 20 元才能进共享工位。", "input_error", { action: "side_job", reason: "insufficient_cash" }); this.wangbaVisits += 1; const gain = 3 + this.rnd(16); this.cash += gain; this.addLog(`接到临时小单，赚了 ${gain} 元`, "side_job", { gain, visits: this.wangbaVisits }); }
   buyRumor() { if (this.cash < this.coffeeCost) { this.addLog("现金不足，买不起社交咖啡。", "input_error", { action: "buy_rumor", reason: "insufficient_cash", cost: this.coffeeCost }); return; } this.cash -= this.coffeeCost; const targetLoc = 1 + this.rnd(this.locations.length); const targetGood = this.goods[this.rnd(this.goods.length)]; const row = this.locMultipliers[targetLoc - 1] || {}; let pct; let direction; const earlyDays = Math.ceil(TOTAL_DAYS * 0.18); const hitRate = this.daysUsed < earlyDays ? 90 : 85; if (this.rnd(100) < hitRate) { direction = "up"; pct = 50 + this.rnd(36); const turnsLeft = this.daysUsed < earlyDays ? 4 : 3; this.rumorBuff = { targetLoc, goodId: targetGood.id, direction: "up", turnsLeft }; } else { direction = "down"; pct = -(20 + this.rnd(21)); this.rumorBuff = { targetLoc, goodId: targetGood.id, direction: "down", turnsLeft: 2 }; } const dir = pct >= 0 ? "更贵" : "更便宜"; const msg = `花了30元咖啡打听到：${this.cityLabels[targetLoc - 1]} 的 ${targetGood.name} 价格可能比当前站点${dir} ${Math.abs(pct)}%。（情报有效期 2-3 天）`; this.rumor = { msg, targetLoc, goodId: targetGood.id, pct, direction }; this.addLog("你通过社交拿到一条行情传闻。", "rumor", { cost: this.coffeeCost, target_location_id: targetLoc, target_location: this.cityLabels[targetLoc - 1], goods_id: targetGood.id, goods: targetGood.name, pct, direction }); }
   smartRepay() { if (this.debt <= 0 || this.cash <= 0) return 0; const reserve = 1000; const pay = Math.max(0, Math.min(this.debt, this.cash - reserve)); if (pay <= 0) return 0; this.repay(pay); return pay; }
 }
 
+function discountedBuyUnitPrice(price, count) {
+  const raw = Math.max(1, Math.floor(Number(price) || 0));
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  const rate = n >= 100 ? 0.85 : n >= 60 ? 0.93 : n >= 30 ? 0.97 : 1;
+  return Math.max(1, Math.floor(raw * rate));
+}
+
+function maxAffordableBuyCount(cash, price, capacityLimit) {
+  const cap = Math.max(0, Math.floor(Number(capacityLimit) || 0));
+  const money = Math.max(0, Math.floor(Number(cash) || 0));
+  let best = 0;
+  for (let n = 1; n <= cap; n += 1) {
+    if (n * discountedBuyUnitPrice(price, n) <= money) best = n;
+  }
+  return best;
+}
+
+const HZFSJEngine = {
+  GameEngine,
+  GAME_VERSION_CODE,
+  TOTAL_DAYS,
+  TARGET_SESSION_MINUTES,
+  TARGET_SECONDS_PER_TURN,
+  CITY_EXPANSION_ROUTES,
+  CAREER_STAGES,
+  INITIAL_CAPACITY,
+  MAX_CAPACITY,
+  CAPACITY_STEP,
+  MARKET_BUY_DISPLAY_LIMIT,
+  LOCAL_RESALE_RATE,
+  MAX_NEWS_PRICE_MULTIPLIER,
+  localResalePrice,
+  marketDepthForGoods,
+  marketSaleQuote,
+  warehouseDailyFeeForCapacity,
+  capacityStepCost,
+  normalizeCapacityTarget,
+  buildCapacityPlan,
+  getCareerStageState,
+  discountedBuyUnitPrice,
+  maxAffordableBuyCount,
+};
+
+if (typeof module !== "undefined" && module.exports) module.exports = HZFSJEngine;
+if (typeof globalThis !== "undefined") globalThis.HZFSJEngine = HZFSJEngine;
+
+})();
+
+"use strict";
+const {
+  GameEngine,
+  GAME_VERSION_CODE,
+  TOTAL_DAYS,
+  TARGET_SESSION_MINUTES,
+  TARGET_SECONDS_PER_TURN,
+  CITY_EXPANSION_ROUTES,
+  CAREER_STAGES,
+  INITIAL_CAPACITY,
+  MAX_CAPACITY,
+  CAPACITY_STEP,
+  MARKET_BUY_DISPLAY_LIMIT,
+  LOCAL_RESALE_RATE,
+  discountedBuyUnitPrice,
+  maxAffordableBuyCount,
+  warehouseDailyFeeForCapacity,
+  capacityStepCost,
+  buildCapacityPlan,
+  getCareerStageState,
+} = globalThis.HZFSJEngine || {};
+
+if (!GameEngine) {
+  throw new Error("HZFSJEngine is not loaded before main.js");
+}
+window.BFSJ_GAME_VERSION = GAME_VERSION_CODE;
+
+const ACTIVE_RUN_KEY = "bfsj_active_run_v1";
+const PENDING_RUN_KEY = "bfsj_pending_run";
+const CLAIM_TOKENS_KEY = "bfsj_claim_tokens";
+const LAST_GUEST_NICK_KEY = "bfsj_last_guest_nickname";
+const UI_MODE_PREF_KEY = "bfsj_ui_mode_pref";
+const LOCAL_RUN_STATS_KEY = "bfsj_local_run_stats";
+const EVENT_LOG_LIMIT = 800;
+const ENABLE_RANDOM_EVENT_POPUPS = false;
+const ENABLE_STATUS_SYSTEM = false;
+const HIDE_AUTH_UI = false;
+const HIDE_START_AUTH_UI = true;
 const game = new GameEngine();
 let selectedMarket = null;
 let selectedInv = null;
@@ -1192,11 +1582,15 @@ let lastPresenceTrackAt = 0;
 let startPromptShown = false;
 let endPromptRunId = null;
 let runUploadConsent = null;
+let guestRunClaimToken = null;
+let runPublished = false;
+let activeCampaign = null;
+let lastProductCampaignGoodsId = null;
 let lastCelebratedTradeKey = null;
 let lastSavedCloudRunId = null;
 let capacityPlanTarget = 0;
 let isMobileUi = false;
-let mobileView = "trade";
+let mobileView = "market";
 let mobileTradeMode = "buy";
 let mobileTradeQty = 1;
 let debtGuideDismissed = false;
@@ -1222,6 +1616,7 @@ let activeRunRestored = false;
 let recommendedActionLockUntilMs = 0;
 let lastMapRenderKey = "";
 let lastPlaceDockRenderKey = "";
+let careerStageAnnouncement = "";
 const SAVE_RETRY_DELAYS_MS = [2500, 5000, 9000, 15000];
 const NET_WORTH_MILESTONES = [
   100000,
@@ -1265,11 +1660,14 @@ const ACTIVE_RUN_GAME_FIELDS = [
   "rumorBuff",
   "activeNews",
   "todayNews",
+  "lastNewsSpawnDay",
+  "lastNewsPopups",
   "tradeCount",
   "gameOver",
   "lastTrade",
   "locMultipliers",
   "starterBufferUsed",
+  "careerStageIndex",
 ];
 
 function clonePlain(value) {
@@ -1315,6 +1713,7 @@ function activeRunSnapshot() {
       debtGuideShown,
       startPromptShown,
       mobileView,
+      platform: window.BFSJ_PLATFORM?.runMeta?.() || null,
     },
   };
 }
@@ -1372,8 +1771,21 @@ function restoreActiveRunSnapshot() {
     runUploadConsent = null;
     savedRunId = null;
     saveFailedRunId = null;
-    mobileView = ui.mobileView === "status" ? "status" : "trade";
+    mobileView = ["market", "inventory", "status"].includes(ui.mobileView)
+      ? ui.mobileView
+      : "market";
+    if (ui.platform) {
+      window.BFSJ_PLATFORM?.beginRun?.({
+        clientRunId: ui.platform.client_run_id,
+        shareCode: ui.platform.share_code,
+      });
+    }
+    guestRunClaimToken = null;
+    runPublished = false;
     activeRunRestored = game.daysUsed > 0 || game.tradeCount > 0 || game.cash !== 3000 || game.debt !== 6000;
+    if (!Number.isFinite(Number(game.careerStageIndex))) {
+      game.careerStageIndex = getCareerStageState(game.score, 0).earnedIndex;
+    }
     return true;
   } catch (_error) {
     clearActiveRunSnapshot();
@@ -1546,7 +1958,7 @@ function buildShareText(stats = readLocalRunStats()) {
   const cityPart = city.canLeave
     ? `已解锁 ${city.latest.label}`
     : `距离 ${city.next?.label || "下一城"} 还差 ${cny(city.gap)}`;
-  const link = window.location.href.split("#")[0];
+  const link = shareRunUrl();
   return [
     `我在《杭州浮生记》跑完一局：${grade.label}`,
     `总分 ${cny(game.score)}，${bestPart}`,
@@ -1554,6 +1966,12 @@ function buildShareText(stats = readLocalRunStats()) {
     cityPart,
     `${TARGET_SESSION_MINUTES} 分钟 ${TOTAL_DAYS} 天，你来超过我：${link}`,
   ].join("\n");
+}
+function shareRunUrl() {
+  const url = new URL(window.location.pathname, window.location.origin);
+  const shareCode = window.BFSJ_PLATFORM?.runMeta?.().share_code;
+  if (runPublished && shareCode) url.searchParams.set("r", shareCode);
+  return url.href;
 }
 async function copyTextToClipboard(text) {
   if (navigator.clipboard?.writeText) {
@@ -1576,7 +1994,7 @@ async function copyTextToClipboard(text) {
 async function shareCurrentRun() {
   const text = buildShareText();
   const title = "杭州浮生记战报";
-  const url = window.location.href.split("#")[0];
+  const url = shareRunUrl();
   try {
     if (navigator.share) {
       await navigator.share({ title, text, url });
@@ -1608,29 +2026,24 @@ function projectedSellReason(nextNet) {
   return `卖完约 ¥${cnyCompact(value)}`;
 }
 function loadUiModePref() {
-  const raw = window.localStorage.getItem(UI_MODE_PREF_KEY);
-  if (raw === "mobile" || raw === "desktop") forcedUiMode = raw;
-  else forcedUiMode = null;
+  forcedUiMode = "mobile";
+  window.localStorage.removeItem(UI_MODE_PREF_KEY);
 }
 function saveUiModePref(mode) {
-  if (mode === "mobile" || mode === "desktop") window.localStorage.setItem(UI_MODE_PREF_KEY, mode);
-  else window.localStorage.removeItem(UI_MODE_PREF_KEY);
+  forcedUiMode = "mobile";
+  window.localStorage.removeItem(UI_MODE_PREF_KEY);
 }
 function updateUiModeToggleButton() {
   const btn = q("uiModeToggleBtn");
   if (!btn) return;
-  if (isMobileUi) {
-    btn.textContent = "切桌面端";
-    btn.title = "当前移动端视图，点击切换到桌面端";
-  } else {
-    btn.textContent = "切移动端";
-    btn.title = "当前桌面端视图，点击切换到移动端";
-  }
+  btn.hidden = true;
+  btn.setAttribute("aria-hidden", "true");
 }
 function applyAuthUiVisibility() {
   const body = document.body;
   if (!body) return;
   body.classList.toggle("hide-auth-ui", HIDE_AUTH_UI);
+  body.classList.toggle("hide-start-auth-ui", HIDE_START_AUTH_UI);
   if (!HIDE_AUTH_UI) return;
   q("accountModal")?.classList.add("hidden");
 }
@@ -1759,16 +2172,28 @@ function locationRenderKey() {
     Object.keys(game.districtLabels).join("|"),
   ].join("::");
 }
+function setPlacePickerOpen(open) {
+  document.body?.classList.toggle("place-picker-open", Boolean(open));
+  q("placePickerBtn")?.setAttribute("aria-expanded", open ? "true" : "false");
+}
 function renderPlaceDockGrid() {
   const grid = q("placeDockGrid");
   if (!grid) return;
+  const currentPlace = game.cityLabels[game.currentLoc - 1] || "选择地点";
+  if (q("placePickerLabel")) q("placePickerLabel").textContent = currentPlace;
   const key = locationRenderKey();
   if (key === lastPlaceDockRenderKey && grid.childElementCount > 0) return;
   lastPlaceDockRenderKey = key;
   grid.innerHTML = "";
-  game.cityLabels.forEach((name, idx) => {
-    const loc = idx + 1;
-    const district = game.locationDistricts[idx] || "shangcheng";
+  const districtOrder = ["xihu", "gongshu", "shangcheng", "binjiang", "yuhang", "xiaoshan"];
+  const places = game.cityLabels
+    .map((name, idx) => {
+      const district = game.locationDistricts[idx] || "shangcheng";
+      const order = districtOrder.indexOf(district);
+      return { name, loc: idx + 1, district, order: order < 0 ? 999 : order };
+    })
+    .sort((a, b) => a.order - b.order || a.loc - b.loc);
+  places.forEach(({ name, loc, district }) => {
     const b = document.createElement("button");
     b.className = `place-dock-item district-${district}`;
     if (game.currentLoc === loc) b.classList.add("active");
@@ -1790,10 +2215,11 @@ function suggestedTravelLocation() {
 }
 function travelToLocation(locIdx) {
   const prevLoc = game.currentLoc;
+  setPlacePickerOpen(false);
   softTap();
   game.oneTravelTurn(locIdx);
   if (game.currentLoc !== prevLoc) {
-    selectedMarket = null;
+    selectedMarket = game.market[0]?.id ?? null;
     selectedInv = null;
     setMobileTradeMode("buy", false);
     marketRefreshPending = true;
@@ -1807,23 +2233,21 @@ function detectMobileUi() {
   const mobileUa = /Android|iPhone|iPad|iPod|Mobile|HarmonyOS|Windows Phone/i.test(ua);
   return Boolean(coarse || narrow || mobileUa);
 }
-function applyMobileView(nextView = "trade") {
+function applyMobileView(nextView = "market") {
   const body = document.body;
   if (!body || !body.classList.contains("mobile-ui")) return;
-  const views = ["trade", "status"];
-  mobileView = views.includes(nextView) ? nextView : "trade";
-  body.classList.remove("mobile-view-trade", "mobile-view-status");
+  const views = ["market", "status"];
+  const normalizedView = ["trade", "inventory"].includes(nextView) ? "market" : nextView;
+  const previousView = mobileView;
+  mobileView = views.includes(normalizedView) ? normalizedView : "market";
+  if (mobileView !== previousView || mobileView === "status") clearManualTradeSelection();
+  body.classList.remove("mobile-view-trade", "mobile-view-market", "mobile-view-inventory", "mobile-view-status");
   body.classList.add(`mobile-view-${mobileView}`);
-  document.querySelectorAll(".mobile-tab").forEach((btn) => {
-    const on = btn.dataset.mobileTab === mobileView;
-    btn.classList.toggle("active", on);
-    btn.setAttribute("aria-pressed", on ? "true" : "false");
-  });
 }
 function applyDeviceUiMode() {
   const body = document.body;
   if (!body) return;
-  const nextMobile = forcedUiMode ? forcedUiMode === "mobile" : detectMobileUi();
+  const nextMobile = true;
   if (isMobileUi === nextMobile && (body.classList.contains("mobile-ui") || body.classList.contains("desktop-ui"))) {
     if (nextMobile) applyMobileView(mobileView);
     updateUiModeToggleButton();
@@ -1832,12 +2256,9 @@ function applyDeviceUiMode() {
   isMobileUi = nextMobile;
   body.classList.toggle("mobile-ui", isMobileUi);
   body.classList.toggle("desktop-ui", !isMobileUi);
-  const tabs = q("mobileTabs");
   const strip = q("mobileStatusStrip");
-  if (tabs) tabs.classList.toggle("hidden", !isMobileUi);
   if (strip) strip.classList.toggle("hidden", !isMobileUi);
-  if (isMobileUi) applyMobileView(mobileView);
-  else body.classList.remove("mobile-view-trade", "mobile-view-status");
+  applyMobileView(mobileView);
   updateUiModeToggleButton();
 }
 function escapeHtml(value) {
@@ -2002,6 +2423,7 @@ function normalizeEventRows(events, userId, runCloudId) {
   }));
 }
 function gameSnapshot() {
+  const platformMeta = window.BFSJ_PLATFORM?.runMeta?.() || {};
   return {
     score: game.score,
     cash: game.cash,
@@ -2015,7 +2437,8 @@ function gameSnapshot() {
     inventory: game.inv,
     logs: game.logs.slice(-80),
     event_summary: summarizeEvents(game.eventLog || []),
-    events: game.eventLog?.slice(-200) || [],
+    events: game.eventLog?.slice(-EVENT_LOG_LIMIT) || [],
+    platform: platformMeta,
     ended_at: new Date().toISOString(),
   };
 }
@@ -2465,9 +2888,11 @@ function runBadges({ score, debt, daysUsed }) {
 }
 function pendingRunFromCurrentGame() {
   const snapshot = gameSnapshot();
+  const platformMeta = window.BFSJ_PLATFORM?.runMeta?.() || {};
   return {
     local_run_id: runId,
     version: GAME_VERSION_CODE,
+    ...platformMeta,
     score: game.score,
     cash: game.cash,
     bank: game.bank,
@@ -2477,6 +2902,7 @@ function pendingRunFromCurrentGame() {
     coat: game.coat,
     days_used: snapshot.days_used,
     ended_reason: endedReason(),
+    publish_intent: runUploadConsent === true,
     final_state: snapshot,
     events: (game.eventLog || []).slice(-EVENT_LOG_LIMIT),
     saved_at: new Date().toISOString(),
@@ -2638,34 +3064,12 @@ async function claimByTokenManual() {
   }
   refreshClaimTokenHint();
 }
-async function saveGuestRunToCloud(manual = false, nicknameOverride = null) {
-  if (!cloud.client) {
-    if (manual) setAuthMessage("云端未连接，无法保存游客战绩。");
-    return false;
-  }
-  if (savedRunId === runId) {
-    if (manual) setAuthMessage("本局结果已经保存过了。");
-    return true;
-  }
-  const defaultName = window.localStorage.getItem(LAST_GUEST_NICK_KEY) || "";
-  const nameRaw = nicknameOverride == null
-    ? window.prompt("输入上榜昵称（1-24字）：", defaultName || "杭州路人甲")
-    : nicknameOverride;
-  if (nameRaw === null) {
-    if (manual) setAuthMessage("已取消本局上榜。");
-    return false;
-  }
-  const nickname = String(nameRaw || "").trim().slice(0, 24);
-  if (!nickname) {
-    if (manual) setAuthMessage("昵称不能为空。");
-    return false;
-  }
-  window.localStorage.setItem(LAST_GUEST_NICK_KEY, nickname);
-  const claimToken = randomToken("claim");
+function guestRunPayload(claimToken) {
   const snapshot = gameSnapshot();
-  const guestPayload = {
+  const platformMeta = window.BFSJ_PLATFORM?.runMeta?.() || {};
+  return {
     guest_id: getGuestId(),
-    nickname,
+    nickname: "匿名玩家",
     device_fingerprint: buildDeviceFingerprint(),
     claim_token: claimToken,
     score: game.score,
@@ -2677,31 +3081,81 @@ async function saveGuestRunToCloud(manual = false, nicknameOverride = null) {
     coat: game.coat,
     days_used: snapshot.days_used,
     ended_reason: endedReason(),
+    ...platformMeta,
     final_state: {
       ...snapshot,
-      entry_mode: "guest",
+      entry_mode: "guest_private_archive",
       can_claim_with_login: true,
     },
   };
-  const { data, error } = await cloud.client
-    .from("guest_runs")
-    .insert(guestPayload)
-    .select("id")
-    .single();
+}
+async function archiveGuestRunToCloud(manual = false) {
+  if (!cloud.client) {
+    storePendingRun("guest_archive_offline");
+    if (manual) setAuthMessage("云端未连接，本局已暂存在本机。");
+    return false;
+  }
+  if (savedRunId === runId) {
+    return true;
+  }
+  if (saveInFlight) return false;
+  saveInFlight = true;
+  const claimToken = guestRunClaimToken || randomToken("claim");
+  const payload = guestRunPayload(claimToken);
+  const { data, error } = await cloud.client.rpc("archive_guest_run", { p_payload: payload });
+  saveInFlight = false;
+  if (error) {
+    saveFailedRunId = runId;
+    storePendingRun("guest_archive_error");
+    if (manual) {
+      setAuthMessage(`云端存档失败：${error.message}`);
+      showSaveBanner(`存档失败：${error.message}`, 5200, "error");
+    }
+    scheduleSaveRetry(() => { archiveGuestRunToCloud(false); }, "对局存档");
+    return false;
+  }
+  clearSaveRetry();
+  guestRunClaimToken = claimToken;
+  storeClaimToken(claimToken);
+  savedRunId = runId;
+  saveFailedRunId = null;
+  lastSavedCloudRunId = data || null;
+  clearPendingRun();
+  setAuthMessage("本局已匿名存档；填写昵称后才会进入排行榜。");
+  game.addLog("本局已完成匿名云端存档。", "cloud_save", { status: "private_archive", run_id: data });
+  refreshClaimTokenHint();
+  return true;
+}
+async function saveGuestRunToCloud(manual = false, nicknameOverride = null) {
+  const defaultName = window.localStorage.getItem(LAST_GUEST_NICK_KEY) || "";
+  const nameRaw = nicknameOverride == null
+    ? window.prompt("输入上榜昵称（1-24字）：", defaultName || "杭州路人甲")
+    : nicknameOverride;
+  if (nameRaw === null) return false;
+  const nickname = String(nameRaw || "").trim().slice(0, 24);
+  if (!nickname) {
+    if (manual) setAuthMessage("昵称不能为空。");
+    return false;
+  }
+  window.localStorage.setItem(LAST_GUEST_NICK_KEY, nickname);
+  const archived = await archiveGuestRunToCloud(manual);
+  if (!archived || !guestRunClaimToken) return false;
+  const { data, error } = await cloud.client.rpc("publish_guest_run", {
+    p_claim_token: guestRunClaimToken,
+    p_nickname: nickname,
+  });
   if (error) {
     setAuthMessage(`游客上榜失败：${error.message}`);
     showSaveBanner(`上榜失败：${error.message}`, 5200, "error");
     return false;
   }
-  storeClaimToken(claimToken);
-  savedRunId = runId;
-  saveFailedRunId = null;
-  lastSavedCloudRunId = data?.id || null;
+  runPublished = true;
+  runUploadConsent = true;
+  lastSavedCloudRunId = data || lastSavedCloudRunId;
   setAuthMessage(`游客上榜成功：${nickname}。后续登录可自动认领历史战绩。`);
   showSaveBanner("写入成功：游客战绩已入榜。", 3200);
-  game.addLog(`游客上榜成功，回绑码：${claimToken}`, "guest_save", { claim_token: claimToken, nickname });
-  window.alert(`上榜成功！你的回绑码：\n${claimToken}\n\n建议截图保存，后续登录可认领战绩。`);
-  refreshClaimTokenHint();
+  game.addLog("游客战绩已发布到排行榜。", "guest_save", { nickname, run_id: data });
+  clearPendingRun();
   await loadLeaderboard();
   return true;
 }
@@ -2953,22 +3407,43 @@ async function saveNickname(name) {
   await trackPresence();
   await loadLeaderboard();
 }
+async function publishAccountRun(runCloudId) {
+  if (!cloud.client || !cloud.user || !runCloudId) return false;
+  const { error } = await cloud.client.rpc("publish_account_run", { p_run_id: runCloudId });
+  if (error) {
+    setAuthMessage(`发布成绩失败：${error.message}`);
+    showSaveBanner(`上榜失败：${error.message}`, 5000, "error");
+    return false;
+  }
+  runPublished = true;
+  return true;
+}
 async function saveRunToCloud(manual = false) {
   if (manual) saveFailedRunId = null;
-  if (runUploadConsent !== true) {
-    if (manual) setAuthMessage("你选择了本局不写入积分榜。");
-    return;
-  }
   if (!game.gameOver) {
     if (manual) setAuthMessage("本局还没有结束，结束后会自动保存。");
     return;
   }
-  if (!cloud.client || !cloud.user) {
-    return saveGuestRunToCloud(manual);
+  if (!cloud.client) {
+    storePendingRun("cloud_offline");
+    if (manual) setAuthMessage("云端未连接，本局已暂存在本机。");
+    return false;
+  }
+  if (!cloud.user) {
+    return manual ? saveGuestRunToCloud(true) : archiveGuestRunToCloud(false);
   }
   if (savedRunId === runId) {
-    if (manual) setAuthMessage("本局结果已经保存过了。");
-    return;
+    if (runUploadConsent === true && !runPublished) {
+      const published = await publishAccountRun(lastSavedCloudRunId);
+      if (published) {
+        await loadLeaderboard();
+        q("rankModal")?.classList.remove("hidden");
+        showSaveBanner("本局成绩已发布到排行榜。", 3000);
+      }
+      return published;
+    }
+    if (manual) setAuthMessage("本局已经匿名存档。");
+    return true;
   }
   if (saveInFlight) {
     if (manual) showSaveBanner("正在提交成绩，请稍候…", 2600);
@@ -2977,6 +3452,7 @@ async function saveRunToCloud(manual = false) {
   if (manual) showSaveBanner("正在提交成绩…", 2400);
   saveInFlight = true;
   const snapshot = gameSnapshot();
+  const platformMeta = window.BFSJ_PLATFORM?.runMeta?.() || {};
   const { data, error } = await cloud.client.from("game_runs").insert({
     user_id: cloud.user.id,
     score: game.score,
@@ -2988,6 +3464,8 @@ async function saveRunToCloud(manual = false) {
     coat: game.coat,
     days_used: snapshot.days_used,
     ended_reason: endedReason(),
+    ...platformMeta,
+    is_public: false,
     final_state: snapshot,
   }).select("id").single();
   if (error) {
@@ -2998,7 +3476,7 @@ async function saveRunToCloud(manual = false) {
     scheduleSaveRetry(() => { saveRunToCloud(false); }, "成绩写入");
     game.addLog(`云端保存失败：${error.message}`, "cloud_save", { status: "run_error", error: error.message });
     render();
-    return;
+    return false;
   }
   const runCloudId = data?.id;
   clearSaveRetry();
@@ -3006,14 +3484,20 @@ async function saveRunToCloud(manual = false) {
   saveFailedRunId = null;
   saveInFlight = false;
   lastSavedCloudRunId = runCloudId || null;
-  setAuthMessage("本局成绩已提交，正在同步榜单...");
-  game.addLog("本局结果已保存到云端胜利榜。", "cloud_save", { status: "success", run_id: runCloudId });
-  showSaveBanner("写入成功，正在刷新榜单…", 2800);
-  q("rankModal")?.classList.remove("hidden");
-  void finalizeRunSave(runCloudId, (game.eventLog || []).slice(-EVENT_LOG_LIMIT));
+  runPublished = runUploadConsent === true
+    ? await publishAccountRun(runCloudId)
+    : false;
+  setAuthMessage(runPublished ? "本局成绩已发布到排行榜。" : "本局已匿名存档。");
+  game.addLog("本局结果已保存到云端。", "cloud_save", {
+    status: runPublished ? "published" : "private_archive",
+    run_id: runCloudId,
+  });
+  if (runPublished) q("rankModal")?.classList.remove("hidden");
+  void finalizeRunSave(runCloudId, (game.eventLog || []).slice(-EVENT_LOG_LIMIT), runPublished);
   render();
+  return true;
 }
-async function finalizeRunSave(runCloudId, events) {
+async function finalizeRunSave(runCloudId, events, isPublic = false) {
   let eventsOk = true;
   if (runCloudId && events?.length) {
     const eventRows = normalizeEventRows(events, cloud.user.id, runCloudId);
@@ -3023,14 +3507,17 @@ async function finalizeRunSave(runCloudId, events) {
       game.addLog(`对局事件保存失败：${eventError.message}`, "cloud_save", { status: "events_error", error: eventError.message });
     }
   }
-  await loadLeaderboard();
-  const inTop20 = runCloudId ? await checkRunInTop20(runCloudId) : false;
-  if (inTop20) showSaveBanner("写入成功：你已进入全服前 20。");
-  else showSaveBanner("写入成功：成绩已保存。");
+  let inTop20 = false;
+  if (isPublic) {
+    await loadLeaderboard();
+    inTop20 = runCloudId ? await checkRunInTop20(runCloudId) : false;
+    if (inTop20) showSaveBanner("写入成功：你已进入全服前 20。");
+    else showSaveBanner("写入成功：成绩已发布。");
+  }
   if (eventsOk) {
-    setAuthMessage("本局结果已保存到云端。");
+    setAuthMessage(isPublic ? "本局结果已保存并发布。" : "本局已匿名存档，可稍后发布到榜单。");
   } else {
-    setAuthMessage("成绩已保存，事件日志同步有延迟，不影响上榜。");
+    setAuthMessage(isPublic ? "成绩已发布，事件日志同步有延迟。" : "对局已存档，事件日志同步有延迟。");
   }
 }
 async function uploadPendingRunIfReady() {
@@ -3038,6 +3525,14 @@ async function uploadPendingRunIfReady() {
   if (!pending || !cloud.client || !cloud.user || saveInFlight) return;
   saveInFlight = true;
   setAuthMessage("正在补传刚才暂存的本局成绩...");
+  const pendingMeta = {
+    client_run_id: pending.client_run_id || null,
+    session_id: pending.session_id || null,
+    city_key: pending.city_key || "hangzhou",
+    city_version: pending.city_version || "hz-v1",
+    game_version: pending.game_version || pending.version || GAME_VERSION_CODE,
+    share_code: pending.share_code || null,
+  };
   const { data, error } = await cloud.client.from("game_runs").insert({
     user_id: cloud.user.id,
     score: pending.score,
@@ -3049,6 +3544,8 @@ async function uploadPendingRunIfReady() {
     coat: pending.coat,
     days_used: pending.days_used,
     ended_reason: pending.ended_reason,
+    ...pendingMeta,
+    is_public: false,
     final_state: {
       ...(pending.final_state || {}),
       recovered_from_local_pending: true,
@@ -3065,27 +3562,78 @@ async function uploadPendingRunIfReady() {
   clearSaveRetry();
   const runCloudId = data?.id;
   lastSavedCloudRunId = runCloudId || null;
-  showSaveBanner("补传成功，正在刷新榜单…", 2600);
-  void finalizePendingRunSave(runCloudId, pending.events || []);
+  const published = pending.publish_intent === true
+    ? await publishAccountRun(runCloudId)
+    : false;
+  runPublished = published;
+  void finalizePendingRunSave(runCloudId, pending.events || [], published);
   clearPendingRun();
   if (pending.local_run_id === runId) savedRunId = runId;
   saveFailedRunId = null;
   saveInFlight = false;
-  setAuthMessage("刚才暂存的本局结果已写入云端。");
-  q("rankModal")?.classList.remove("hidden");
+  setAuthMessage(published ? "刚才暂存的本局结果已发布。" : "刚才暂存的本局结果已匿名入库。");
+  if (published) q("rankModal")?.classList.remove("hidden");
   render();
 }
-async function finalizePendingRunSave(runCloudId, events) {
+async function finalizePendingRunSave(runCloudId, events, isPublic = false) {
   if (runCloudId && events?.length) {
     const { error: eventError } = await cloud.client
       .from("game_events")
       .insert(normalizeEventRows(events, cloud.user.id, runCloudId));
     if (eventError) setAuthMessage("成绩已补传，事件日志同步有延迟。");
   }
+  if (!isPublic) return;
   await loadLeaderboard();
   const inTop20 = runCloudId ? await checkRunInTop20(runCloudId) : false;
   if (inTop20) showSaveBanner("补传成功：你已进入全服前 20。");
-  else showSaveBanner("补传成功：成绩已保存。");
+  else showSaveBanner("补传成功：成绩已发布。");
+}
+async function uploadPendingGuestRunIfReady() {
+  const pending = readPendingRun();
+  if (!pending || !cloud.client || cloud.user || saveInFlight) return false;
+  const claimToken = pending.claim_token || randomToken("claim");
+  const payload = {
+    guest_id: getGuestId(),
+    nickname: "匿名玩家",
+    device_fingerprint: buildDeviceFingerprint(),
+    claim_token: claimToken,
+    score: pending.score,
+    cash: pending.cash,
+    bank: pending.bank,
+    debt: pending.debt,
+    health: pending.health,
+    fame: pending.fame,
+    coat: pending.coat,
+    days_used: pending.days_used,
+    ended_reason: pending.ended_reason,
+    client_run_id: pending.client_run_id || randomToken("run"),
+    session_id: pending.session_id || window.BFSJ_PLATFORM?.runtime?.sessionId || null,
+    city_key: pending.city_key || "hangzhou",
+    city_version: pending.city_version || "hz-v1",
+    game_version: pending.game_version || pending.version || GAME_VERSION_CODE,
+    share_code: pending.share_code || null,
+    final_state: {
+      ...(pending.final_state || {}),
+      recovered_from_local_pending: true,
+      pending_saved_at: pending.saved_at,
+    },
+  };
+  saveInFlight = true;
+  const { data, error } = await cloud.client.rpc("archive_guest_run", { p_payload: payload });
+  saveInFlight = false;
+  if (error) {
+    scheduleSaveRetry(() => { uploadPendingGuestRunIfReady(); }, "游客对局补传");
+    return false;
+  }
+  clearSaveRetry();
+  guestRunClaimToken = claimToken;
+  storeClaimToken(claimToken);
+  lastSavedCloudRunId = data || null;
+  if (pending.local_run_id === runId) savedRunId = runId;
+  clearPendingRun();
+  setAuthMessage("离线对局已匿名补传，可在本设备登录后认领。");
+  refreshClaimTokenHint();
+  return true;
 }
 function updateAccountUi() {
   const signedIn = Boolean(cloud.user);
@@ -3210,6 +3758,7 @@ async function initCloud() {
     },
   });
   cloud.ready = true;
+  await window.BFSJ_PLATFORM?.init?.(cloud.client);
   await handleOAuthRedirect();
   const { data } = await cloud.client.auth.getSession();
   cloud.user = data.session?.user || null;
@@ -3217,32 +3766,18 @@ async function initCloud() {
   updateAccountUi();
   initPresence();
   await loadLeaderboard();
-  await uploadPendingRunIfReady();
+  if (cloud.user) await uploadPendingRunIfReady();
+  else await uploadPendingGuestRunIfReady();
   cloud.client.auth.onAuthStateChange(async (_event, session) => {
     cloud.user = session?.user || null;
     await loadProfile();
     updateAccountUi();
     await trackPresence(true);
     if (cloud.user) await claimGuestRunsAfterLogin();
-    await uploadPendingRunIfReady();
-    if (cloud.user && game.gameOver && savedRunId !== runId) await saveRunToCloud();
+    if (cloud.user) await uploadPendingRunIfReady();
+    else await uploadPendingGuestRunIfReady();
+    if (game.gameOver && savedRunId !== runId) await saveRunToCloud();
   });
-}
-function discountedBuyUnitPrice(price, count) {
-  const n = Math.max(0, Math.floor(Number(count) || 0));
-  if (n >= 80) return Math.floor(price * 0.88);
-  if (n >= 50) return Math.floor(price * 0.92);
-  if (n >= 20) return Math.floor(price * 0.97);
-  return price;
-}
-function maxAffordableBuyCount(cash, price, capacityLimit) {
-  const cap = Math.max(0, Math.floor(Number(capacityLimit) || 0));
-  const money = Math.max(0, Math.floor(Number(cash) || 0));
-  let best = 0;
-  for (let n = 1; n <= cap; n++) {
-    if (n * discountedBuyUnitPrice(price, n) <= money) best = n;
-  }
-  return best;
 }
 function maxBuyCount(goodsId) { const mk = game.market.find((x) => x.id === goodsId); if (!mk) return 0; return Math.max(0, maxAffordableBuyCount(game.cash, mk.price, Math.floor((game.coat - game.totalItems) / (mk.weight || 1)))); }
 function maxSellCount(goodsId) { const inv = game.inv.find((x) => x.id === goodsId); if (!inv) return 0; return Math.max(0, inv.count); }
@@ -3251,24 +3786,37 @@ function setMobileTradeMode(mode, resetQty = false) {
   mobileTradeMode = mode === "sell" ? "sell" : "buy";
   if (resetQty) mobileTradeQty = 1;
 }
+function clearManualTradeSelection() {
+  selectedMarket = null;
+  selectedInv = null;
+  setMobileTradeMode("buy", true);
+  document.body?.classList.remove("mobile-manual-trade");
+}
 function mobileTradeState() {
   if (mobileTradeMode === "sell") {
     const inv = selectedInv != null ? game.inv.find((x) => x.id === selectedInv) : null;
     const quote = inv ? game.previewSell(inv.id, inv.count) : null;
     const cap = inv && quote?.ok ? maxSellCount(inv.id) : 0;
     const pnl = quote?.ok ? quote.pnl : 0;
+    const tradeTone = pnl < 0 ? "loss" : pnl > 0 ? "profit" : "flat";
+    const outcome = pnl < 0
+      ? `预计亏 ${cny(Math.abs(pnl))}`
+      : pnl > 0
+        ? `预计赚 ${cny(pnl)}`
+        : "预计保本";
     return {
       mode: "sell",
       title: inv ? inv.name : "选择持仓",
       meta: inv && quote?.ok
-        ? `持有 ${inv.count} · 卖价 ${cny(quote.avgUnit)} · ${pnl >= 0 ? "+" : ""}${cny(pnl)}`
+        ? outcome
         : inv
           ? "本地暂不收，换个地点看看"
           : "点选持仓后卖出",
       cap,
       primary: "卖出",
-      maxLabel: cap > 0 ? `全部卖出 ${cap}` : "全部卖出",
-      disabled: !inv || !mk || cap <= 0 || game.gameOver,
+      maxActionText: "全部卖出",
+      tradeTone,
+      disabled: !inv || !quote?.ok || cap <= 0 || game.gameOver,
     };
   }
   const mk = selectedMarket != null ? game.market.find((x) => x.id === selectedMarket) : null;
@@ -3279,7 +3827,8 @@ function mobileTradeState() {
     meta: mk ? `买价 ${cny(mk.price)} · 最多 ${cap}` : "点选买入列表里的商品",
     cap,
     primary: "买入",
-    maxLabel: cap > 0 ? `全部买入 ${cap}` : "全部买入",
+    maxActionText: "全部买入",
+    tradeTone: "buy",
     disabled: !mk || cap <= 0 || game.gameOver,
   };
 }
@@ -3293,9 +3842,13 @@ function renderMobileTradeDock() {
   if (!dock) return;
   if (mobileTradeMode === "sell" && selectedInv == null) mobileTradeMode = "buy";
   const state = mobileTradeState();
+  const hasSelection = state.mode === "sell" ? selectedInv != null : selectedMarket != null;
+  document.body?.classList.toggle("mobile-manual-trade", Boolean(isMobileUi && hasSelection && mobileView !== "status"));
   const qty = clampMobileTradeQty(state.cap);
   dock.classList.toggle("mode-sell", state.mode === "sell");
   dock.classList.toggle("mode-buy", state.mode !== "sell");
+  dock.classList.toggle("is-loss", state.tradeTone === "loss");
+  dock.classList.toggle("is-profit", state.tradeTone === "profit");
   dock.classList.toggle("is-disabled", state.disabled);
   if (q("mobileTradeModeText")) q("mobileTradeModeText").textContent = state.mode === "sell" ? "卖出" : "买入";
   if (q("mobileTradeTitle")) q("mobileTradeTitle").textContent = state.title;
@@ -3307,8 +3860,8 @@ function renderMobileTradeDock() {
   }
   if (q("mobileTradeMaxBtn")) {
     q("mobileTradeMaxBtn").innerHTML = state.cap > 0
-      ? `<span>${state.mode === "sell" ? "全部卖出" : "全部买入"}</span><strong>${state.cap}</strong>`
-      : `<span>${state.mode === "sell" ? "全部卖出" : "全部买入"}</span>`;
+      ? `<span>${state.maxActionText}</span><strong>${state.cap}</strong>`
+      : `<span>${state.maxActionText}</span>`;
     q("mobileTradeMaxBtn").disabled = state.disabled;
   }
   if (q("mobileQtyMinus")) q("mobileQtyMinus").disabled = state.disabled || qty <= 1;
@@ -3507,6 +4060,51 @@ function renderOpportunityStrip(buyOpp, sellOpp) {
   syncThumbActionFromPrimary();
 }
 function showNextModal() { const modal = q("eventModal"); const body = q("eventBody"); if (modalQueue.length === 0) { modal.classList.add("hidden"); body.textContent = ""; return; } body.textContent = modalQueue.shift(); modal.classList.remove("hidden"); }
+function safeCampaignUrl(value) {
+  try {
+    const url = new URL(String(value || ""), window.location.href);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch (_error) {
+    return "";
+  }
+}
+function openCampaignModal(campaign) {
+  if (!campaign) return;
+  activeCampaign = campaign;
+  q("campaignTitle").textContent = campaign.title || "本地合作信息";
+  q("campaignBody").textContent = campaign.body || "";
+  const action = q("campaignActionBtn");
+  const actionUrl = safeCampaignUrl(campaign.action_url);
+  action.textContent = campaign.action_label || "查看详情";
+  action.classList.toggle("hidden", !actionUrl);
+  action.dataset.url = actionUrl;
+  q("campaignModal")?.classList.remove("hidden");
+}
+async function deliverCampaign(placement, context = {}) {
+  const api = window.BFSJ_PLATFORM;
+  const campaign = api?.pickCampaign?.(placement, context);
+  if (!campaign) {
+    if (placement === "product") q("productSponsorSlot").textContent = "";
+    return null;
+  }
+  await api.recordCampaignEvent(campaign, "eligible", { placement, ...context });
+  await api.recordCampaignEvent(campaign, "impression", { placement, ...context });
+  if (placement === "product") {
+    const slot = q("productSponsorSlot");
+    if (slot) {
+      slot.textContent = `合作 · ${campaign.title}`;
+      slot.onclick = () => openCampaignModal(campaign);
+    }
+  } else {
+    openCampaignModal(campaign);
+  }
+  return campaign;
+}
+function maybeDeliverProductCampaign(goodsId) {
+  if (goodsId == null || String(goodsId) === String(lastProductCampaignGoodsId)) return;
+  lastProductCampaignGoodsId = goodsId;
+  void deliverCampaign("product", { goods_id: goodsId });
+}
 function showStartModal() {
   const modal = q("startModal");
   if (!modal) return;
@@ -3651,9 +4249,11 @@ function renderMarketTable(buyOpp) {
     if (buyOpp?.id === row.id) tr.classList.add("deal-buy-row");
     tr.addEventListener("click", () => {
       selectedMarket = row.id;
+      selectedInv = null;
       setMobileTradeMode("buy", true);
       prefillTradeCounts({ buy: true });
       render();
+      maybeDeliverProductCampaign(row.id);
     });
     const tdName = document.createElement("td");
     tdName.innerHTML = `<span>${escapeHtml(row.name)}</span>`;
@@ -3674,7 +4274,7 @@ function renderInventoryTable(sellOpp) {
   if (game.inv.length === 0) {
     const summary = q("invSummary");
     if (summary) summary.innerHTML = `<span class="empty-position">暂无持仓</span>`;
-    tb.innerHTML = `<tr class="empty-row"><td colspan="3">买入后会在这里显示卖价和盈亏</td></tr>`;
+    tb.innerHTML = `<tr class="empty-row"><td colspan="3">暂无持仓</td></tr>`;
     return;
   }
   for (const row of game.inv) {
@@ -3682,6 +4282,7 @@ function renderInventoryTable(sellOpp) {
     if (row.id === selectedInv) tr.classList.add("selected");
     tr.addEventListener("click", () => {
       selectedInv = row.id;
+      selectedMarket = null;
       setMobileTradeMode("sell", true);
       prefillTradeCounts({ sell: true });
       render();
@@ -3736,9 +4337,12 @@ function startNewGameFlow(options = {}) {
   selectedInv = null;
   setMobileTradeMode("buy", true);
   runId += 1;
+  window.BFSJ_PLATFORM?.beginRun?.();
   savedRunId = null;
   saveFailedRunId = null;
   runUploadConsent = null;
+  guestRunClaimToken = null;
+  runPublished = false;
   lastRecordedEndStatsRunId = null;
   runStartedAtMs = Date.now();
   runEndedElapsedSeconds = null;
@@ -3763,6 +4367,7 @@ function startNewGameFlow(options = {}) {
   expandGuideDismissed = false;
   lastMapRenderKey = "";
   lastPlaceDockRenderKey = "";
+  careerStageAnnouncement = "";
   setDebtGuideGlow(false);
   hideDebtGuideTip();
   hideExpandGuideTip();
@@ -3909,6 +4514,38 @@ function updateRoundProgressUi() {
     q("roundGoalProgressTrack")?.setAttribute("aria-valuenow", String(goalProgress));
   }
 }
+function updateCareerProgressUi() {
+  const previousIndex = Math.max(0, Number(game.careerStageIndex) || 0);
+  const state = getCareerStageState(game.score, previousIndex);
+  if (state.index > previousIndex) {
+    game.careerStageIndex = state.index;
+    careerStageAnnouncement = `经营阶段晋升：${state.stage.name}`;
+    game.addLog(careerStageAnnouncement, "career_stage", {
+      stage_id: state.stage.id,
+      stage_index: state.index,
+      score: game.score,
+    });
+    const card = q("careerProgress");
+    card?.classList.remove("stage-up");
+    if (card) void card.offsetWidth;
+    card?.classList.add("stage-up");
+  }
+  if (q("careerStageName")) q("careerStageName").textContent = state.stage.name;
+  if (q("careerStageHint")) {
+    q("careerStageHint").textContent = state.next
+      ? `${state.stage.focus} · 还差 ${cnyCompact(state.gap)}`
+      : state.stage.focus;
+  }
+  if (q("careerStageSteps")) {
+    q("careerStageSteps").innerHTML = CAREER_STAGES.map((stage, index) => {
+      const status = index < state.index ? "done" : index === state.index ? "current" : "locked";
+      return `<span class="career-stage-step ${status}" title="${escapeHtml(stage.name)}"><i></i><b>${escapeHtml(stage.name)}</b></span>`;
+    }).join("");
+  }
+  if (q("careerStageFill")) q("careerStageFill").style.width = `${state.progress}%`;
+  q("careerStageTrack")?.setAttribute("aria-valuenow", String(Math.round(state.progress)));
+  q("careerProgress")?.setAttribute("aria-label", `杭州经营阶段：${state.stage.name}`);
+}
 function render() {
   let bannerShownThisRender = false;
   q("dayText").textContent = isMobileUi ? `第${game.daysUsed}/${TOTAL_DAYS}天` : game.dayText;
@@ -3932,6 +4569,7 @@ function render() {
   updateStatusGuideBadges();
   if (q("mobileTopCash")) q("mobileTopCash").textContent = `现金 ${cny(game.cash)}`;
   updateRoundProgressUi();
+  updateCareerProgressUi();
   if (q("currentLocBadge")) {
     q("currentLocBadge").textContent = game.currentLoc > 0 ? game.cityLabels[game.currentLoc - 1] : "未出发";
   }
@@ -3943,6 +4581,13 @@ function render() {
   if (q("newsDayTag")) q("newsDayTag").textContent = `第${game.daysUsed}天`;
   if (q("newsHeadline")) q("newsHeadline").textContent = game.todayNews?.title || "【市场平稳】";
   if (q("topNewsTicker")) q("topNewsTicker").textContent = game.todayNews?.title || "【市场平稳】今天没有重磅消息。";
+  if (q("miniTickerText")) {
+    const latestLog = Array.isArray(game.logs) && game.logs.length ? game.logs[game.logs.length - 1] : "";
+    const newsText = game.todayNews?.title
+      ? `${game.todayNews.title} ${game.todayNews?.desc || ""}`.trim()
+      : "市场观察中";
+    q("miniTickerText").textContent = latestLog && !String(latestLog).startsWith("新游戏开始") ? latestLog : newsText;
+  }
   if (q("newsDesc")) q("newsDesc").textContent = game.todayNews?.desc || "暂无重磅新闻。";
   if (q("newsEffects")) {
     const effects = game.todayNews?.effects || [];
@@ -3967,6 +4612,10 @@ function render() {
 
   if (selectedMarket != null && !game.market.some((x) => x.id === selectedMarket)) selectedMarket = null;
   if (selectedInv != null && !game.inv.some((x) => x.id === selectedInv)) selectedInv = null;
+  if (selectedMarket == null && selectedInv == null && game.market.length > 0 && !game.gameOver) {
+    selectedMarket = game.market[0].id;
+    setMobileTradeMode("buy", false);
+  }
 
   renderMarketTable(null);
   renderInventoryTable(null);
@@ -4059,6 +4708,11 @@ function render() {
     }
   }
   if (!bannerShownThisRender) bannerShownThisRender = maybeShowNetWorthMilestone(net);
+  if (!bannerShownThisRender && careerStageAnnouncement) {
+    showSaveBanner(`${careerStageAnnouncement}，新的经营目标已更新。`, 3000);
+    careerStageAnnouncement = "";
+    bannerShownThisRender = true;
+  }
   q("logs").innerHTML = game.logs.slice().reverse().map((x) => `<div>${x}</div>`).join("");
 
   if (game.lastMarketPopups && game.lastMarketPopups.length > 0) {
@@ -4067,6 +4721,11 @@ function render() {
       showNextModal();
     }
     game.lastMarketPopups = [];
+  }
+  if (game.lastNewsPopups && game.lastNewsPopups.length > 0) {
+    modalQueue.push(...game.lastNewsPopups);
+    showNextModal();
+    game.lastNewsPopups = [];
   }
   if (game.rumor && game.rumor.msg) {
     if (ENABLE_RANDOM_EVENT_POPUPS) {
@@ -4080,7 +4739,7 @@ function render() {
     endPromptRunId = runId;
     showEndModal();
   }
-  if (game.gameOver && runUploadConsent === true && savedRunId !== runId && saveFailedRunId !== runId) saveRunToCloud();
+  if (game.gameOver && savedRunId !== runId && saveFailedRunId !== runId) saveRunToCloud();
   writeActiveRunSnapshot();
   trackPresence();
 }
@@ -4166,12 +4825,27 @@ function executeMobileTrade(countOverride = null) {
   if (state.disabled) return;
   if (countOverride != null) mobileTradeQty = countOverride;
   const count = clampMobileTradeQty(state.cap);
+  const tradedId = state.mode === "sell" ? selectedInv : selectedMarket;
   softTap(state.mode === "sell" ? [10, 28, 14] : 8);
   if (state.mode === "sell") {
     game.sell(selectedInv, count);
-    prefillTradeCounts({ sell: true });
+    const stillHeld = game.inv.some((item) => item.id === tradedId);
+    if (stillHeld) {
+      selectedInv = tradedId;
+      selectedMarket = null;
+      setMobileTradeMode("sell", false);
+      prefillTradeCounts({ sell: true });
+    } else {
+      selectedInv = null;
+      selectedMarket = game.market[0]?.id ?? null;
+      setMobileTradeMode("buy", true);
+      prefillTradeCounts({ buy: true });
+    }
   } else {
     game.buy(selectedMarket, count);
+    selectedMarket = tradedId;
+    selectedInv = null;
+    setMobileTradeMode("buy", false);
     prefillTradeCounts({ buy: true });
   }
   render();
@@ -4226,6 +4900,7 @@ q("sellOpportunityBtn").addEventListener("click", () => { runRecommendedAction((
 q("actionOpportunityBtn").addEventListener("click", () => { runRecommendedAction(() => executePrimaryOpportunity()); });
 q("thumbActionBtn")?.addEventListener("click", () => { runRecommendedAction(() => executePrimaryOpportunity()); });
 q("mobileQtyMinus")?.addEventListener("click", () => { setMobileTradeQty(mobileTradeQty - 1); });
+q("mobileTradeCloseBtn")?.addEventListener("click", () => { clearManualTradeSelection(); render(); });
 q("mobileQtyPlus")?.addEventListener("click", () => { setMobileTradeQty(mobileTradeQty + 1); });
 q("mobileTradeCount")?.addEventListener("input", () => { setMobileTradeQty(nval("mobileTradeCount", 1)); });
 q("mobileTradeMaxBtn")?.addEventListener("click", () => {
@@ -4236,7 +4911,21 @@ q("mobileTradePrimaryBtn")?.addEventListener("click", () => { executeMobileTrade
 q("rumorBtn").addEventListener("click", () => { game.buyRumor(); render(); });
 q("newGameBtnTop").addEventListener("click", () => { startNewGameFlow(); });
 q("eventOkBtn").addEventListener("click", () => { showNextModal(); });
-q("startConfirmBtn").addEventListener("click", () => { closeStartModal(); });
+q("campaignCloseBtn")?.addEventListener("click", () => {
+  if (activeCampaign) void window.BFSJ_PLATFORM?.recordCampaignEvent?.(activeCampaign, "dismiss", {});
+  activeCampaign = null;
+  q("campaignModal")?.classList.add("hidden");
+});
+q("campaignActionBtn")?.addEventListener("click", () => {
+  const url = safeCampaignUrl(q("campaignActionBtn")?.dataset.url);
+  if (!activeCampaign || !url) return;
+  void window.BFSJ_PLATFORM?.recordCampaignEvent?.(activeCampaign, "click", { action_url: url });
+  window.open(url, "_blank", "noopener,noreferrer");
+});
+q("startConfirmBtn").addEventListener("click", () => {
+  closeStartModal();
+  void deliverCampaign("news", { day: game.daysUsed });
+});
 q("startGoogleBtn").addEventListener("click", () => {
   closeStartModal();
   authWithProvider("google");
@@ -4249,7 +4938,7 @@ q("startEmailBtn").addEventListener("click", () => {
 q("endSaveBtn").addEventListener("click", () => {
   runUploadConsent = true;
   if (!cloud.user) {
-    storePendingRun("end_save");
+    if (!cloud.client) storePendingRun("end_save_offline");
     closeEndModal();
     openGuestSaveModal();
     return;
@@ -4260,13 +4949,13 @@ q("endSaveBtn").addEventListener("click", () => {
 q("guestSaveSubmitBtn")?.addEventListener("click", () => { void submitGuestSaveFromModal(); });
 q("guestSaveCancelBtn")?.addEventListener("click", () => {
   closeGuestSaveModal();
-  setAuthMessage("本局已暂存在本机，稍后仍可上榜。");
+  setAuthMessage("本局已匿名存档，稍后仍可上榜。");
 });
 q("endSkipBtn").addEventListener("click", () => {
   runUploadConsent = false;
   closeEndModal();
   closeGuestSaveModal();
-  setAuthMessage("你选择了本局不写入积分榜。");
+  setAuthMessage("本局已匿名存档，不会公开到排行榜。");
 });
 q("endReplayBtn")?.addEventListener("click", () => { startNewGameFlow(); });
 q("endShareBtn")?.addEventListener("click", () => { void shareCurrentRun(); });
@@ -4284,12 +4973,11 @@ q("claimGuestBtn").addEventListener("click", () => { claimByTokenManual(); });
 q("copyClaimTokenBtn")?.addEventListener("click", () => { copyLatestClaimToken(); });
 q("signOutBtn").addEventListener("click", () => { signOut(); });
 q("refreshLeaderboardBtn").addEventListener("click", () => { loadLeaderboard(); });
-q("uiModeToggleBtn").addEventListener("click", () => {
-  forcedUiMode = isMobileUi ? "desktop" : "mobile";
-  saveUiModePref(forcedUiMode);
+q("uiModeToggleBtn")?.addEventListener("click", () => {
+  forcedUiMode = "mobile";
+  saveUiModePref("mobile");
   applyDeviceUiMode();
   render();
-  showSaveBanner(`已切换到${isMobileUi ? "移动端" : "桌面端"}视图。`, 1800);
 });
 q("mobileMenuBtn")?.addEventListener("click", (ev) => {
   ev.stopPropagation();
@@ -4301,14 +4989,12 @@ q("menuRankBtn")?.addEventListener("click", () => {
   closeMobileMenu();
   loadLeaderboard();
 });
-q("menuDesktopBtn")?.addEventListener("click", () => {
-  forcedUiMode = "desktop";
-  saveUiModePref(forcedUiMode);
-  applyDeviceUiMode();
+q("menuAccountBtn")?.addEventListener("click", () => {
+  q("accountModal")?.classList.remove("hidden");
   closeMobileMenu();
-  render();
-  showSaveBanner("已切到企业桌面端。", 1800);
+  updateAccountUi();
 });
+q("menuDesktopBtn")?.remove();
 document.addEventListener("click", (ev) => {
   const card = q("mobileMenuCard");
   const btn = q("mobileMenuBtn");
@@ -4331,11 +5017,18 @@ q("capacityConfirmBtn").addEventListener("click", () => {
   if (result.ok) closeCapacityModal();
   render();
 });
-document.querySelectorAll(".mobile-tab").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    applyMobileView(btn.dataset.mobileTab || "trade");
-  });
+q("menuTradeBtn")?.addEventListener("click", () => {
+  applyMobileView("market");
+  closeMobileMenu();
 });
+q("menuLedgerBtn")?.addEventListener("click", () => {
+  applyMobileView("status");
+  closeMobileMenu();
+});
+q("placePickerBtn")?.addEventListener("click", () => {
+  setPlacePickerOpen(!document.body?.classList.contains("place-picker-open"));
+});
+q("placePickerBackdrop")?.addEventListener("click", () => { setPlacePickerOpen(false); });
 q("miniDebtCard").addEventListener("click", () => { clearDebtGuide({ openRepay: true }); });
 q("miniItemsCard")?.addEventListener("click", () => {
   expandGuideDismissed = true;

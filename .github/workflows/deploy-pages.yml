@@ -16,8 +16,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate production JavaScript
+        run: |
+          node --check web_mvp/main.js
+          node --check web_mvp/platform.js
+          node --check web_mvp/admin.js
+
+      - name: Validate mobile shell and game simulation
+        run: |
+          node scripts/check_mobile_manifest.mjs
+          node scripts/simulate_core_30turns.mjs
+          node scripts/simulate_thumb_flow_30days.mjs
+          CHROME=/usr/bin/google-chrome node scripts/smoke_mobile_grid.mjs
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

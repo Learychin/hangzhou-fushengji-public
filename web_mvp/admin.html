@@ -32,6 +32,40 @@
 
       <section class="panel">
         <div class="panel-head">
+          <h2>城市版本</h2>
+          <div><span id="citiesHint"></span> <button id="cityCreateBtn" type="button">新增城市</button></div>
+        </div>
+        <div class="table-wrap">
+          <table id="citiesTable">
+            <thead>
+              <tr>
+                <th>城市</th><th>状态</th><th>默认</th><th>内容版本</th><th>配置</th><th>更新</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>推广活动</h2>
+          <div><span id="campaignsHint"></span> <button id="campaignCreateBtn" type="button">新增活动</button></div>
+        </div>
+        <div class="table-wrap">
+          <table id="campaignsTable">
+            <thead>
+              <tr>
+                <th>状态</th><th>城市</th><th>类型</th><th>标题</th><th>投放时间</th><th>权重 / 频次</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
           <h2>用户</h2>
           <span id="usersHint"></span>
         </div>
@@ -39,7 +73,7 @@
           <table id="usersTable">
             <thead>
               <tr>
-                <th>邮箱</th><th>昵称</th><th>来源</th><th>注册</th><th>最近登录</th><th>局数</th><th>最高分</th>
+                <th>身份</th><th>昵称</th><th>来源</th><th>首次出现</th><th>最近出现</th><th>局数</th><th>最高分</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -65,7 +99,7 @@
             <thead>
               <tr>
                 <th><input id="runsSelectAllCheckbox" type="checkbox" aria-label="全选当前页对局" /></th>
-                <th>时间</th><th>玩家</th><th>分数</th><th>现金</th><th>债务</th><th>天数</th><th>原因</th><th>事件</th><th>操作</th>
+                <th>时间</th><th>玩家</th><th>来源</th><th>城市</th><th>分数</th><th>现金</th><th>债务</th><th>天数</th><th>原因</th><th>事件</th><th>操作</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -110,6 +144,48 @@
         </div>
       </div>
     </section>
+
+    <div id="cityEditor" class="admin-modal hidden" role="dialog" aria-modal="true" aria-labelledby="cityEditorTitle">
+      <form id="cityEditorForm" class="admin-editor">
+        <div class="panel-head"><h2 id="cityEditorTitle">城市配置</h2><button id="cityEditorCancel" type="button">关闭</button></div>
+        <div class="editor-grid">
+          <label>城市键<input id="cityKeyInput" required pattern="[a-z0-9][a-z0-9_-]{1,31}" placeholder="suzhou" /></label>
+          <label>显示名称<input id="cityNameInput" required placeholder="苏州浮生记" /></label>
+          <label>内容版本<input id="cityVersionInput" required value="v1" /></label>
+          <label>路由优先级<input id="cityPriorityInput" type="number" min="1" value="100" /></label>
+          <label>国家代码<input id="cityCountriesInput" value="CN" placeholder="CN" /></label>
+          <label>省份匹配<input id="cityRegionsInput" placeholder="jiangsu,江苏" /></label>
+          <label>城市匹配<input id="cityPatternsInput" placeholder="suzhou,苏州" /></label>
+          <label class="check-label"><input id="cityEnabledInput" type="checkbox" />启用</label>
+          <label class="check-label"><input id="cityDefaultInput" type="checkbox" />默认城市</label>
+          <label class="editor-wide">城市 JSON 配置<textarea id="cityConfigInput" rows="6">{}</textarea></label>
+        </div>
+        <div class="editor-actions"><button type="submit">保存城市</button></div>
+      </form>
+    </div>
+
+    <div id="campaignEditor" class="admin-modal hidden" role="dialog" aria-modal="true" aria-labelledby="campaignEditorTitle">
+      <form id="campaignEditorForm" class="admin-editor">
+        <div class="panel-head"><h2 id="campaignEditorTitle">推广活动</h2><button id="campaignEditorCancel" type="button">关闭</button></div>
+        <input id="campaignIdInput" type="hidden" />
+        <div class="editor-grid">
+          <label>城市键<input id="campaignCityInput" value="hangzhou" /></label>
+          <label>类型<select id="campaignTypeInput"><option value="sponsor_news">赞助新闻</option><option value="sponsor_product">赞助商品</option><option value="coupon">优惠券</option><option value="event">本地活动</option></select></label>
+          <label>状态<select id="campaignStatusInput"><option value="draft">草稿</option><option value="active">投放中</option><option value="paused">暂停</option><option value="ended">结束</option></select></label>
+          <label>权重<input id="campaignWeightInput" type="number" min="1" max="10000" value="100" /></label>
+          <label>每日频次<input id="campaignCapInput" type="number" min="1" max="50" value="1" /></label>
+          <label>开始时间<input id="campaignStartsInput" type="datetime-local" /></label>
+          <label>结束时间<input id="campaignEndsInput" type="datetime-local" /></label>
+          <label>行动文字<input id="campaignActionLabelInput" placeholder="领取优惠" /></label>
+          <label class="editor-wide">标题<input id="campaignTitleInput" required /></label>
+          <label class="editor-wide">正文<textarea id="campaignBodyInput" rows="4" required></textarea></label>
+          <label class="editor-wide">行动链接<input id="campaignActionUrlInput" type="url" placeholder="https://..." /></label>
+          <label class="editor-wide">投放 JSON<textarea id="campaignPayloadInput" rows="5">{"placement":"news"}</textarea></label>
+        </div>
+        <div class="editor-actions"><button type="submit">保存活动</button></div>
+      </form>
+    </div>
+
 
     <script src="./config.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>

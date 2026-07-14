@@ -1,14 +1,26 @@
 {
   "name": "杭州浮生记",
   "short_name": "浮生记",
-  "description": "10 分钟一局的杭州回合制买卖小游戏。",
+  "description": "45 天杭州文字模拟经营游戏：观察行情、低买高卖、还清欠债。",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "theme_color": "#06131b",
-  "background_color": "#03090f",
+  "theme_color": "#e8e6df",
+  "background_color": "#fbfaf6",
   "icons": [
+    {
+      "src": "./app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "./app-icon.svg",
       "sizes": "any",
