@@ -78,6 +78,7 @@ https://你的线上域名
   "content_schema": "city-content-v1",
   "short_title": "城市浮生",
   "full_title": "城市浮生记",
+  "start_title": "城市开局",
   "scene_key": "city-v1",
   "locations": [
     { "name": "地点一", "district": "central" }

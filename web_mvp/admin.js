@@ -12,6 +12,7 @@ const EMPTY_CITY_CONTENT = {
   content_schema: "city-content-v1",
   short_title: "",
   full_title: "",
+  start_title: "",
   scene_key: "",
   locations: [],
   product_overrides: [],

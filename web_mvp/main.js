@@ -1912,6 +1912,8 @@ function applyCityPresentation(city) {
     const heading = document.querySelector(".topbar-brand h1");
     if (heading) heading.textContent = shortTitle;
   }
+  const startTitle = String(config.start_title || "").trim().slice(0, 28);
+  if (startTitle && q("startTitle")) q("startTitle").textContent = startTitle;
   if (fullTitle) document.title = fullTitle;
 }
 
@@ -2097,6 +2099,10 @@ function cityExpansionCardHtml(score = game.score) {
   <small>攒够 ${cny(first.score)} 后，可以离开杭州去别的城市发展。</small>
 </div>`;
 }
+function currentGameTitle() {
+  const city = window.BFSJ_PLATFORM?.runtime?.city;
+  return String(city?.config?.full_title || city?.display_name || "杭州浮生记").trim().slice(0, 40) || "杭州浮生记";
+}
 function buildShareText(stats = readLocalRunStats()) {
   const grade = runGrade(game.score);
   const city = cityExpansionState(game.score);
@@ -2106,7 +2112,7 @@ function buildShareText(stats = readLocalRunStats()) {
     : `距离 ${city.next?.label || "下一城"} 还差 ${cny(city.gap)}`;
   const link = shareRunUrl();
   return [
-    `我在《杭州浮生记》跑完一局：${grade.label}`,
+    `我在《${currentGameTitle()}》跑完一局：${grade.label}`,
     `总分 ${cny(game.score)}，${bestPart}`,
     `用时 ${formatDuration(runEndedElapsedSeconds ?? getRunElapsedSeconds())}，连赚最高 x${maxProfitStreak}，最大单笔 ${runBestProfit > 0 ? cnyCompact(runBestProfit) : "暂无"}`,
     cityPart,
@@ -2139,7 +2145,7 @@ async function copyTextToClipboard(text) {
 }
 async function shareCurrentRun() {
   const text = buildShareText();
-  const title = "杭州浮生记战报";
+  const title = `${currentGameTitle()}战报`;
   const url = shareRunUrl();
   try {
     if (navigator.share) {

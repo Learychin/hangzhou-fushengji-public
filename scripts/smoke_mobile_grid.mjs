@@ -189,6 +189,8 @@ function assertMetrics(metrics, viewport) {
   if (!metrics.buyMode) problems.push("market selection did not enter buy mode");
   if (!metrics.sellMode) problems.push("inventory selection did not enter sell mode");
   if (!metrics.accountModalVisible) problems.push("player account entry did not open");
+  if (metrics.sharePayload?.title !== "杭州浮生记战报") problems.push("share title is not city-aware");
+  if (!metrics.sharePayload?.text?.includes("《杭州浮生记》") || !metrics.sharePayload?.url?.startsWith(metrics.origin)) problems.push("share payload is incomplete");
   if (!metrics.pwa.active) problems.push("service worker is not active");
   for (const asset of ["index.html", "styles.css", "layout-v2.css", "main.js", "platform.js", "config.js"]) {
     if (!metrics.pwa.assets.includes(asset)) problems.push(`PWA cache missing ${asset}`);
@@ -255,6 +257,12 @@ async function runViewport(serverUrl, viewport) {
       document.querySelector("#menuAccountBtn")?.click();
       const accountModalVisible = !document.querySelector("#accountModal")?.classList.contains("hidden");
       document.querySelector("#accountCloseBtn")?.click();
+      let sharePayload = null;
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        value: async (payload) => { sharePayload = payload; },
+      });
+      await shareCurrentRun();
       const marketRows = [...document.querySelectorAll("#marketTable tbody tr")].map((row) => {
         const rect = row.getBoundingClientRect();
         const style = getComputedStyle(row);
@@ -274,7 +282,7 @@ async function runViewport(serverUrl, viewport) {
         placeItems: [...document.querySelectorAll(".place-dock-item")].map(boxElement),
         marketRows,
         marketGaps: marketRows.slice(1).map((row, index) => row.top - marketRows[index].bottom),
-        buyMode, sellMode, accountModalVisible, pwa: cache,
+        buyMode, sellMode, accountModalVisible, sharePayload, origin: location.origin, pwa: cache,
         overflowX: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - innerWidth,
         scrollHeight: document.documentElement.scrollHeight,
       });
