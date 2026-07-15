@@ -291,9 +291,21 @@ async function runViewport(serverUrl, viewport) {
     console.log(`Mobile grid smoke passed: ${viewport.width}x${viewport.height}`);
   } finally {
     cdp?.close();
+    const exited = new Promise((resolve) => {
+      if (chrome.exitCode != null) resolve();
+      else chrome.once("exit", resolve);
+    });
     chrome.kill("SIGTERM");
-    await sleep(100);
-    fs.rmSync(profile, { recursive: true, force: true });
+    await Promise.race([exited, sleep(3000)]);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        fs.rmSync(profile, { recursive: true, force: true });
+        break;
+      } catch (error) {
+        if (attempt === 4) console.warn(`Could not remove temporary Chrome profile: ${error.message}`);
+        else await sleep(150 * (attempt + 1));
+      }
+    }
   }
 }
 
