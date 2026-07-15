@@ -8,6 +8,16 @@ let currentCityRows = [];
 let currentCampaignRows = [];
 const selectedRunIds = new Set();
 const selectedRunRows = new Map();
+const EMPTY_CITY_CONTENT = {
+  content_schema: "city-content-v1",
+  short_title: "",
+  full_title: "",
+  scene_key: "",
+  locations: [],
+  product_overrides: [],
+  district_labels: {},
+  news_pool: [],
+};
 const PLATFORM_INFO = [
   {
     key: "github",
@@ -550,7 +560,7 @@ function openCityEditor(row = null) {
   q("cityPatternsInput").value = (item.city_patterns || []).join(",");
   q("cityEnabledInput").checked = item.enabled ?? true;
   q("cityDefaultInput").checked = Boolean(item.is_default);
-  q("cityConfigInput").value = JSON.stringify(item.config || {}, null, 2);
+  q("cityConfigInput").value = JSON.stringify(item.city_key ? (item.config || {}) : EMPTY_CITY_CONTENT, null, 2);
   q("cityEditor").classList.remove("hidden");
 }
 function closeCityEditor() {

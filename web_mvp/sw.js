@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "bfsj-shell";
-const CACHE_NAME = `${CACHE_PREFIX}-network-first-20260715-platform-3`;
+const CACHE_NAME = `${CACHE_PREFIX}-network-first-20260715-platform-4`;
 const APP_SHELL = [
   "./",
   "./index.html",

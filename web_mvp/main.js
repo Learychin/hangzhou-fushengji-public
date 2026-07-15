@@ -357,6 +357,99 @@ class GameEngine {
     this.newGame();
   }
 
+  configureCityContent(config = {}) {
+    if (!config || typeof config !== "object" || Array.isArray(config)) return false;
+    let changed = false;
+
+    const productRows = Array.isArray(config.product_overrides)
+      ? config.product_overrides
+      : (Array.isArray(config.products) ? config.products : []);
+    if (productRows.length) {
+      const overrides = new Map(productRows
+        .filter((row) => row && Number.isInteger(Number(row.id)))
+        .map((row) => [Number(row.id), row]));
+      this.goods = this.goods.map((goods) => {
+        const row = overrides.get(goods.id);
+        if (!row) return goods;
+        const next = { ...goods };
+        const name = String(row.name || "").trim();
+        if (name) next.name = name.slice(0, 40);
+        if (["physical", "virtual", "financial"].includes(row.kind)) next.kind = row.kind;
+        if (Number.isFinite(Number(row.weight))) next.weight = Math.max(0, Math.floor(Number(row.weight)));
+        if (Number.isFinite(Number(row.base))) next.base = Math.max(1, Math.floor(Number(row.base)));
+        if (Number.isFinite(Number(row.span))) next.span = Math.max(1, Math.floor(Number(row.span)));
+        if (JSON.stringify(next) !== JSON.stringify(goods)) changed = true;
+        return next;
+      });
+    }
+
+    if (Array.isArray(config.locations) && config.locations.length === this.locations.length) {
+      const locations = config.locations.map((row, index) => {
+        if (typeof row === "string") {
+          return { name: row.trim().slice(0, 24), district: this.locationDistricts[index] };
+        }
+        return {
+          name: String(row?.name || "").trim().slice(0, 24),
+          district: String(row?.district || this.locationDistricts[index] || "city").trim().slice(0, 32),
+        };
+      });
+      if (locations.every((row) => row.name)) {
+        const nextNames = locations.map((row) => row.name);
+        const nextDistricts = locations.map((row) => row.district || "city");
+        if (JSON.stringify(nextNames) !== JSON.stringify(this.locations)
+          || JSON.stringify(nextDistricts) !== JSON.stringify(this.locationDistricts)) changed = true;
+        this.locations = nextNames;
+        this.locationDistricts = nextDistricts;
+      }
+    }
+
+    if (config.district_labels && typeof config.district_labels === "object") {
+      const labels = Object.fromEntries(Object.entries(config.district_labels)
+        .map(([key, value]) => [String(key).slice(0, 32), String(value || "").trim().slice(0, 24)])
+        .filter(([, value]) => value));
+      if (Object.keys(labels).length) {
+        this.districtLabels = { ...this.districtLabels, ...labels };
+        changed = true;
+      }
+    }
+
+    if (Array.isArray(config.news_pool) && config.news_pool.length) {
+      const goodsIds = new Set(this.goods.map((goods) => goods.id));
+      const newsPool = config.news_pool.map((row) => {
+        const effects = (Array.isArray(row?.effects) ? row.effects : []).map((effect) => {
+          const ids = (Array.isArray(effect?.goodsIds) ? effect.goodsIds : [])
+            .map(Number)
+            .filter((id) => goodsIds.has(id));
+          if (!ids.length) return null;
+          const firstPct = Math.max(-95, Math.min(1200, Math.floor(Number(effect.minPct) || 0)));
+          const secondPct = Math.max(-95, Math.min(1200, Math.floor(Number(effect.maxPct) || 0)));
+          return {
+            goodsIds: ids,
+            minPct: Math.min(firstPct, secondPct),
+            maxPct: Math.max(firstPct, secondPct),
+            tag: String(effect.tag || "行情").slice(0, 16),
+          };
+        }).filter(Boolean);
+        const title = String(row?.title || "").trim().slice(0, 80);
+        if (!title || !effects.length) return null;
+        return {
+          title,
+          desc: String(row?.desc || "").trim().slice(0, 180),
+          durationMin: Math.max(1, Math.min(6, Math.floor(Number(row.durationMin) || 2))),
+          durationMax: Math.max(1, Math.min(8, Math.floor(Number(row.durationMax) || 4))),
+          effects,
+        };
+      }).filter(Boolean);
+      if (newsPool.length) {
+        this.newsPool = newsPool;
+        changed = true;
+      }
+    }
+
+    this.cityContentKey = String(config.content_schema || config.scene_key || "city-content-v1").slice(0, 80);
+    return changed;
+  }
+
   rnd(n) { return Math.floor(Math.random() * n); }
   get totalDays() { return TOTAL_DAYS; }
   get targetSessionMinutes() { return TARGET_SESSION_MINUTES; }
@@ -1585,6 +1678,9 @@ let runUploadConsent = null;
 let guestRunClaimToken = null;
 let runPublished = false;
 let activeCampaign = null;
+let pendingCityRuntime = null;
+let pendingNewsCampaignContext = null;
+let lastCampaignNewsDay = -1;
 let lastProductCampaignGoodsId = null;
 let lastCelebratedTradeKey = null;
 let lastSavedCloudRunId = null;
@@ -1640,6 +1736,14 @@ const cloud = {
   onlinePlayers: [],
 };
 const ACTIVE_RUN_GAME_FIELDS = [
+  "goods",
+  "marketEvents",
+  "tradeEvents",
+  "locations",
+  "locationDistricts",
+  "districtLabels",
+  "newsPool",
+  "cityContentKey",
   "cash",
   "debt",
   "bank",
@@ -1795,6 +1899,48 @@ function restoreActiveRunSnapshot() {
 
 function q(id) { return document.getElementById(id); }
 function nval(id, d = 0) { const v = Number(q(id).value); return Number.isFinite(v) ? v : d; }
+
+function applyCityPresentation(city) {
+  const config = city?.config || {};
+  const cityKey = String(city?.city_key || "hangzhou").replace(/[^a-z0-9_-]/gi, "").slice(0, 32) || "hangzhou";
+  const sceneKey = String(config.scene_key || cityKey).replace(/[^a-z0-9_-]/gi, "").slice(0, 48) || cityKey;
+  document.body.dataset.city = cityKey;
+  document.body.dataset.scene = sceneKey;
+  const shortTitle = String(config.short_title || "").trim().slice(0, 24);
+  const fullTitle = String(config.full_title || city?.display_name || "").trim().slice(0, 40);
+  if (shortTitle) {
+    const heading = document.querySelector(".topbar-brand h1");
+    if (heading) heading.textContent = shortTitle;
+  }
+  if (fullTitle) document.title = fullTitle;
+}
+
+function syncResolvedCityContent() {
+  const city = window.BFSJ_PLATFORM?.runtime?.city;
+  if (!city) return false;
+  pendingCityRuntime = city;
+  applyCityPresentation(city);
+  if (activeRunRestored || game.daysUsed > 0 || game.tradeCount > 0) return false;
+  const changed = game.configureCityContent(city.config || {});
+  pendingCityRuntime = null;
+  if (!changed) return false;
+  game.newGame();
+  selectedMarket = null;
+  selectedInv = null;
+  currentRunBounty = buildRunBounty();
+  lastMapRenderKey = "";
+  lastPlaceDockRenderKey = "";
+  return true;
+}
+
+function applyPendingCityContentForNewRun() {
+  const city = pendingCityRuntime || window.BFSJ_PLATFORM?.runtime?.city;
+  if (!city) return false;
+  applyCityPresentation(city);
+  pendingCityRuntime = null;
+  return game.configureCityContent(city.config || {});
+}
+
 function cny(n) { return `¥${Number(n).toLocaleString("zh-CN")}`; }
 function formatDuration(seconds) {
   const safe = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -3759,6 +3905,7 @@ async function initCloud() {
   });
   cloud.ready = true;
   await window.BFSJ_PLATFORM?.init?.(cloud.client);
+  const cityContentChanged = syncResolvedCityContent();
   await handleOAuthRedirect();
   const { data } = await cloud.client.auth.getSession();
   cloud.user = data.session?.user || null;
@@ -3768,6 +3915,7 @@ async function initCloud() {
   await loadLeaderboard();
   if (cloud.user) await uploadPendingRunIfReady();
   else await uploadPendingGuestRunIfReady();
+  if (cityContentChanged) render();
   cloud.client.auth.onAuthStateChange(async (_event, session) => {
     cloud.user = session?.user || null;
     await loadProfile();
@@ -4059,7 +4207,22 @@ function renderOpportunityStrip(buyOpp, sellOpp) {
   }
   syncThumbActionFromPrimary();
 }
-function showNextModal() { const modal = q("eventModal"); const body = q("eventBody"); if (modalQueue.length === 0) { modal.classList.add("hidden"); body.textContent = ""; return; } body.textContent = modalQueue.shift(); modal.classList.remove("hidden"); }
+function showNextModal() {
+  const modal = q("eventModal");
+  const body = q("eventBody");
+  if (modalQueue.length === 0) {
+    modal.classList.add("hidden");
+    body.textContent = "";
+    if (pendingNewsCampaignContext) {
+      const context = pendingNewsCampaignContext;
+      pendingNewsCampaignContext = null;
+      void deliverCampaign("news", context);
+    }
+    return;
+  }
+  body.textContent = modalQueue.shift();
+  modal.classList.remove("hidden");
+}
 function safeCampaignUrl(value) {
   try {
     const url = new URL(String(value || ""), window.location.href);
@@ -4332,6 +4495,7 @@ function startNewGameFlow(options = {}) {
   const { showIntro = false } = options;
   clearActiveRunSnapshot();
   activeRunRestored = false;
+  applyPendingCityContentForNewRun();
   game.newGame();
   selectedMarket = null;
   selectedInv = null;
@@ -4343,6 +4507,8 @@ function startNewGameFlow(options = {}) {
   runUploadConsent = null;
   guestRunClaimToken = null;
   runPublished = false;
+  pendingNewsCampaignContext = null;
+  lastCampaignNewsDay = -1;
   lastRecordedEndStatsRunId = null;
   runStartedAtMs = Date.now();
   runEndedElapsedSeconds = null;
@@ -4723,6 +4889,13 @@ function render() {
     game.lastMarketPopups = [];
   }
   if (game.lastNewsPopups && game.lastNewsPopups.length > 0) {
+    const newsDay = game.daysUsed;
+    if (lastCampaignNewsDay !== newsDay) {
+      lastCampaignNewsDay = newsDay;
+      if (Math.random() < 0.38) {
+        pendingNewsCampaignContext = { day: newsDay, trigger: "market_news" };
+      }
+    }
     modalQueue.push(...game.lastNewsPopups);
     showNextModal();
     game.lastNewsPopups = [];

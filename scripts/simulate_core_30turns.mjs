@@ -224,6 +224,35 @@ function assertRun(result) {
   }
 }
 
+function assertCityContentContract() {
+  const game = new ENGINE.GameEngine();
+  const locations = game.locations.map((_, index) => ({
+    name: `测试地点${index + 1}`,
+    district: index < 6 ? "north" : "south",
+  }));
+  const changed = game.configureCityContent({
+    content_schema: "city-content-v1",
+    locations,
+    district_labels: { north: "城北", south: "城南" },
+    product_overrides: [{ id: 0, name: "测试城市特产", base: 18, span: 42 }],
+    news_pool: [{
+      title: "【测试城市行情】",
+      desc: "用于验证城市配置会驱动新闻与商品。",
+      durationMin: 2,
+      durationMax: 3,
+      effects: [{ goodsIds: [0], minPct: 30, maxPct: 12, tag: "测试" }],
+    }],
+  });
+  if (!changed) throw new Error("City content configuration was not applied");
+  game.newGame();
+  if (game.cityLabels[0] !== "测试地点1" || game.cityLabels.length !== 12) throw new Error("City locations were not applied");
+  if (game.locationDistricts[11] !== "south" || game.districtLabels.north !== "城北") throw new Error("City districts were not applied");
+  if (game.goods[0].name !== "测试城市特产" || game.goods[0].base !== 18) throw new Error("City product override was not applied");
+  if (game.newsPool[0].title !== "【测试城市行情】" || game.newsPool[0].effects[0].minPct !== 12) throw new Error("City news pool was not normalized");
+}
+
+assertCityContentContract();
+
 const results = [];
 for (let i = 0; i < RUNS; i += 1) {
   const result = runOne(SEED_BASE + i);

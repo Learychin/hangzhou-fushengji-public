@@ -69,6 +69,29 @@ https://你的线上域名
 - `supabase/migrations/20260505002000_tighten_game_run_visibility.sql`
 - `supabase/migrations/20260714150000_platform_foundation.sql`
 
+### 城市内容配置
+
+后台的“城市 JSON 配置”会直接驱动下一局的城市内容。当前杭州未填写覆盖项时继续使用内置内容，因此不会改变现有界面。新增城市可使用：
+
+```json
+{
+  "content_schema": "city-content-v1",
+  "short_title": "城市浮生",
+  "full_title": "城市浮生记",
+  "scene_key": "city-v1",
+  "locations": [
+    { "name": "地点一", "district": "central" }
+  ],
+  "district_labels": { "central": "中心区" },
+  "product_overrides": [
+    { "id": 0, "name": "城市特产", "base": 12, "span": 48 }
+  ],
+  "news_pool": []
+}
+```
+
+`locations` 需保持 12 项，以沿用当前移动端矩阵；`product_overrides` 通过现有商品 `id` 替换名称和价格参数。随机市场新闻出现后，新闻广告位会按城市、权重和每日频控抽取，商品广告位则在玩家选中对应商品时触发。
+
 ### 本地验证
 
 已验证：
