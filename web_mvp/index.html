@@ -44,7 +44,9 @@
           <div class="score">总分 <span id="scoreText">0</span></div>
           <button id="newGameBtnTop">新游戏</button>
           <button id="rankBtnTop" class="icon-btn" title="胜利榜">胜利榜</button>
-          <button id="mobileMenuBtn" class="icon-btn mobile-menu-btn" title="菜单">☰</button>
+          <button id="mobileMenuBtn" class="icon-btn mobile-menu-btn" type="button" title="菜单" aria-label="菜单">
+            <span class="mobile-menu-glyph" aria-hidden="true"><i></i><i></i><i></i></span>
+          </button>
           <div id="mobileMenuCard" class="mobile-menu-card hidden" role="menu" aria-label="移动端菜单">
             <div class="mobile-menu-online">在线人数：<strong id="mobileMenuOnlineText">0</strong></div>
             <div id="mobileVersionText" class="mobile-menu-version">版本读取中</div>

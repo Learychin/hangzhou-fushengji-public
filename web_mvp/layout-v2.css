@@ -1,20 +1,30 @@
 /* Layout V2: disciplined mobile shell for the public web build. */
+@font-face {
+  font-family: "Fusheng MiSans";
+  src: local("MiSans VF"), local("MiSans"), local("MiSans Regular");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 :root {
   --v2-bg: #e8e6df;
-  --v2-paper: #fbfaf6;
-  --v2-panel: #fffdf8;
+  --v2-paper: #fffdf9;
+  --v2-panel: #fffdf9;
   --v2-panel-alt: #f8f6f0;
-  --v2-ink: #111513;
-  --v2-muted: #757871;
+  --v2-dock: #e7e3da;
+  --v2-ink: #121513;
+  --v2-muted: #767871;
+  --v2-small: #5f615b;
   --v2-line: #ded9ce;
   --v2-line-strong: #5b5b55;
-  --v2-cyan: #12b6c8;
-  --v2-cyan-deep: #0aa1b4;
+  --v2-cyan: #12b7c8;
+  --v2-cyan-block: #8fcdd2;
   --v2-charcoal: #2c2e2b;
-  --v2-red: #cf2b24;
+  --v2-red: #cd2d2a;
   --v2-row-h: 30px;
-  --v2-font: "SF Pro Display", "PingFang SC", "Noto Sans SC", Helvetica, Arial, sans-serif;
-  --v2-number: "DIN Alternate", "Avenir Next Condensed", "SF Pro Display", Helvetica, Arial, sans-serif;
+  --v2-font: "Fusheng MiSans", "MiSans", system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Noto Sans SC", Helvetica, Arial, sans-serif;
+  --v2-number: var(--v2-font);
 }
 
 html,
@@ -32,7 +42,7 @@ body.mobile-ui {
   background: var(--v2-bg);
   color: var(--v2-ink);
   font-family: var(--v2-font);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 body.mobile-ui .app {
@@ -71,7 +81,7 @@ body.mobile-ui #invPanel {
 
 body.mobile-ui .topbar {
   display: grid;
-  grid-template-columns: calc(var(--v2-row-h) * 2) minmax(0, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   min-height: calc(var(--v2-row-h) * 2);
   height: calc(var(--v2-row-h) * 2);
   margin: 0;
@@ -83,8 +93,8 @@ body.mobile-ui .topbar {
 body.mobile-ui .top-actions {
   grid-column: 1;
   display: grid;
-  width: calc(var(--v2-row-h) * 2);
-  min-width: calc(var(--v2-row-h) * 2);
+  width: 100%;
+  min-width: 0;
   height: calc(var(--v2-row-h) * 2);
   place-items: center;
 }
@@ -99,8 +109,20 @@ body.mobile-ui .mobile-menu-btn {
   border-radius: 0;
   background: transparent;
   color: var(--v2-ink);
-  font-size: 26px;
-  font-weight: 900;
+}
+
+body.mobile-ui .mobile-menu-glyph {
+  display: grid;
+  width: 16px;
+  gap: 3px;
+}
+
+body.mobile-ui .mobile-menu-glyph i {
+  display: block;
+  width: 16px;
+  height: 2px;
+  border-radius: 0;
+  background: currentColor;
 }
 
 body.mobile-ui .mobile-menu-btn:active {
@@ -108,31 +130,42 @@ body.mobile-ui .mobile-menu-btn:active {
 }
 
 body.mobile-ui .topbar-brand {
-  grid-column: 2;
+  grid-column: 2 / 7;
   display: flex;
   min-width: 0;
   align-items: center;
-  padding: 0 12px 0 4px;
+  padding: 0;
 }
 
 body.mobile-ui .top-title-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  width: 100%;
   min-width: 0;
   align-items: baseline;
-  gap: 14px;
+  gap: 0;
 }
 
-body.mobile-ui .topbar-brand h1,
-body.mobile-ui .top-round-pill {
+body.mobile-ui .topbar-brand h1 {
+  grid-column: 1 / 3;
+  align-self: baseline;
   color: var(--v2-ink);
-  font-size: clamp(22px, 6vw, 27px);
-  font-weight: 900;
-  line-height: 1;
+  font-size: clamp(22px, 6.5vw, 28px);
+  font-weight: 800;
+  line-height: 1.08;
   letter-spacing: 0;
   white-space: nowrap;
 }
 
 body.mobile-ui .top-round-pill {
+  grid-column: 3 / 6;
+  align-self: baseline;
+  color: var(--v2-ink);
+  font-size: clamp(20px, 5.8vw, 25px);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: 0;
+  white-space: nowrap;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -190,18 +223,18 @@ body.mobile-ui .mini-ticker {
 body.mobile-ui .mini-ticker span {
   padding-left: 14px;
   color: var(--v2-muted);
-  font-size: 12px;
-  font-weight: 850;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 body.mobile-ui .mini-ticker strong {
   min-width: 0;
   overflow: hidden;
   padding-right: 12px;
-  color: #575a54;
-  font-size: 13px;
-  font-weight: 850;
-  line-height: 1;
+  color: var(--v2-small);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -221,10 +254,12 @@ body.mobile-ui #mobileStatusStrip > .mini-stat:first-child,
 body.mobile-ui #miniDebtCard,
 body.mobile-ui #mobileStatusStrip > #miniDebtCard {
   display: grid !important;
+  grid-template-rows: 16px minmax(0, 1fr);
   height: calc(var(--v2-row-h) * 3);
   min-height: calc(var(--v2-row-h) * 3);
-  align-content: center;
-  padding: 0 14px;
+  align-content: stretch;
+  align-items: start;
+  padding: 10px 14px 9px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -247,43 +282,46 @@ body.mobile-ui .mini-stat span,
 body.mobile-ui .mini-stat-btn span {
   color: var(--v2-muted);
   font-size: 13px;
-  font-weight: 900;
-  line-height: 1;
+  font-weight: 650;
+  line-height: 16px;
 }
 
 body.mobile-ui #mobileStatusStrip > .mini-stat:first-child strong {
-  margin-top: 8px;
+  align-self: end;
+  margin-top: 0;
   color: var(--v2-ink);
   font-family: var(--v2-number);
-  font-size: clamp(42px, 12.2vw, 52px);
-  font-weight: 900;
-  line-height: 0.88;
+  font-size: clamp(40px, 10.8vw, 46px);
+  font-weight: 800;
+  line-height: 1;
   letter-spacing: 0;
 }
 
 body.mobile-ui #miniDebtCard strong {
-  margin-top: 9px;
+  align-self: end;
+  margin-top: 0;
   color: var(--v2-red);
   font-family: var(--v2-number);
-  font-size: clamp(23px, 6.2vw, 30px);
-  font-weight: 900;
-  line-height: 0.96;
+  font-size: clamp(26px, 6.9vw, 30px);
+  font-weight: 800;
+  line-height: 1;
 }
 
 body.mobile-ui .mini-stat-btn.status-guide-badge::after {
   right: 14px;
   top: 12px;
   display: grid;
-  min-width: 30px;
+  min-width: 28px;
   height: 23px;
   place-items: center;
-  border: 3px solid var(--v2-panel);
-  border-radius: 999px;
-  background: #ff4438;
+  border: 2px solid var(--v2-panel);
+  border-radius: 2px;
+  background: var(--v2-red);
   color: white;
-  box-shadow: 0 8px 20px rgba(255, 68, 56, 0.2);
+  box-shadow: none;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 800;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 body.mobile-ui .place-dock {
@@ -339,26 +377,26 @@ body.mobile-ui .place-dock-item span {
   display: block;
   min-width: 0;
   color: inherit;
-  font-size: clamp(10px, 2.8vw, 12px);
-  font-weight: 900;
-  line-height: 1;
+  font-size: clamp(10px, 2.9vw, 12.5px);
+  font-weight: 700;
+  line-height: 1.05;
   overflow: hidden;
   text-align: center;
   text-overflow: clip;
   white-space: nowrap;
 }
 
-body.mobile-ui .place-dock-item.district-xihu { background: #edf8ef; color: #16844a; }
-body.mobile-ui .place-dock-item.district-shangcheng { background: #fff3df; color: #c97416; }
+body.mobile-ui .place-dock-item.district-xihu { background: #edf8ef; color: #0e7440; }
+body.mobile-ui .place-dock-item.district-shangcheng { background: #fff3df; color: #9d5600; }
 body.mobile-ui .place-dock-item.district-gongshu { background: #edf6ff; color: #1b73b6; }
 body.mobile-ui .place-dock-item.district-binjiang { background: #f4efff; color: #6a51c4; }
-body.mobile-ui .place-dock-item.district-yuhang { background: #eaf8f5; color: #078c7f; }
+body.mobile-ui .place-dock-item.district-yuhang { background: #eaf8f5; color: #006f67; }
 body.mobile-ui .place-dock-item.district-xiaoshan { background: #fff0f6; color: #b92d72; }
 
 body.mobile-ui .place-dock-item.active {
-  background: linear-gradient(135deg, #303231, #171918 58%, #262827);
-  color: var(--v2-panel);
-  box-shadow: inset 0 -3px 0 rgba(255, 255, 255, 0.12);
+  background: #121513;
+  color: #fffdf9;
+  box-shadow: none;
 }
 
 body.mobile-ui.mobile-view-trade #tradeSection,
@@ -417,9 +455,9 @@ body.mobile-ui #invPanel .warehouse-head {
 body.mobile-ui #marketPanel h2,
 body.mobile-ui #invPanel h2 {
   color: var(--v2-ink);
-  font-size: clamp(24px, 6.2vw, 30px);
-  font-weight: 900;
-  line-height: 1;
+  font-size: clamp(23px, 6vw, 27px);
+  font-weight: 800;
+  line-height: var(--v2-row-h);
   letter-spacing: 0;
 }
 
@@ -441,7 +479,8 @@ body.mobile-ui .capacity-chip {
   color: var(--v2-ink);
   box-shadow: none;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 body.mobile-ui .table-scroll,
@@ -500,7 +539,7 @@ body.mobile-ui #invTable th {
   color: var(--v2-muted);
   background: var(--v2-panel);
   font-size: clamp(11px, 2.9vw, 13px);
-  font-weight: 900;
+  font-weight: 650;
   line-height: var(--v2-row-h) !important;
   text-align: left;
 }
@@ -514,8 +553,8 @@ body.mobile-ui #invTable td {
   border: 0;
   color: var(--v2-ink);
   background: transparent;
-  font-size: clamp(12px, 3.45vw, 15px);
-  font-weight: 850;
+  font-size: clamp(13px, 3.7vw, 16px);
+  font-weight: 650;
   line-height: var(--v2-row-h) !important;
   vertical-align: middle;
 }
@@ -546,7 +585,8 @@ body.mobile-ui tbody tr:nth-child(even) td {
 
 body.mobile-ui #marketTable th:nth-child(1),
 body.mobile-ui #marketTable td:nth-child(1) {
-  width: 66%;
+  width: 62%;
+  padding-right: 6px !important;
 }
 
 body.mobile-ui #marketPanel th {
@@ -555,25 +595,41 @@ body.mobile-ui #marketPanel th {
 
 body.mobile-ui #marketTable th:nth-child(2),
 body.mobile-ui #marketTable td:nth-child(2) {
-  width: 34%;
+  width: 38%;
+  padding-right: 7px !important;
+  padding-left: 2px !important;
   text-align: right;
 }
 
 body.mobile-ui #invTable th:nth-child(1),
 body.mobile-ui #invTable td:nth-child(1) {
   width: 52%;
+  padding-right: 4px !important;
+  padding-left: 7px !important;
 }
 
 body.mobile-ui #invTable th:nth-child(2),
 body.mobile-ui #invTable td:nth-child(2) {
-  width: 22%;
+  width: 16%;
+  padding-right: 2px !important;
+  padding-left: 2px !important;
   text-align: right;
 }
 
 body.mobile-ui #invTable th:nth-child(3),
 body.mobile-ui #invTable td:nth-child(3) {
-  width: 26%;
+  width: 32%;
+  padding-right: 4px !important;
+  padding-left: 2px !important;
   text-align: right;
+}
+
+body.mobile-ui #invTable th {
+  font-size: clamp(9px, 2.6vw, 11px);
+}
+
+body.mobile-ui #invTable td {
+  font-size: clamp(11px, 3vw, 13px);
 }
 
 body.mobile-ui td span,
@@ -590,7 +646,8 @@ body.mobile-ui #marketTable td:nth-child(2),
 body.mobile-ui #invTable td:nth-child(2),
 body.mobile-ui #invTable td:nth-child(3) {
   font-family: var(--v2-number);
-  font-weight: 900;
+  font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 body.mobile-ui td .price-tag,
@@ -603,16 +660,18 @@ body.mobile-ui tr.selected {
 }
 
 body.mobile-ui tr.selected td {
-  box-shadow: inset 0 -3px 0 var(--v2-cyan);
+  box-shadow: inset 0 -2px 0 var(--v2-cyan);
+  font-weight: 800;
 }
 
 body.mobile-ui #invTable .empty-row td {
   height: var(--v2-row-h) !important;
   min-height: var(--v2-row-h) !important;
-  color: #aaa9a2;
+  color: var(--v2-muted);
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 600;
   line-height: var(--v2-row-h) !important;
+  letter-spacing: 0.03em;
   text-align: center;
   white-space: normal;
 }
@@ -637,9 +696,9 @@ body.mobile-ui .mobile-trade-dock.is-disabled {
   overflow: hidden;
   transform: none;
   border: 0;
-  border-top: 1px solid var(--v2-line-strong);
+  border-top: 2px solid var(--v2-line-strong);
   border-radius: 0;
-  background: #e6e3da;
+  background: var(--v2-dock);
   box-shadow: none;
 }
 
@@ -660,15 +719,15 @@ body.mobile-ui .mobile-trade-dock.is-disabled .mobile-trade-info {
   padding: 0 12px;
   border-right: 1px solid rgba(255, 255, 255, 0.45);
   border-bottom: 1px solid rgba(255, 255, 255, 0.45);
-  background: #e6e3da;
+  background: var(--v2-dock);
 }
 
 body.mobile-ui .mobile-trade-info span {
   grid-column: 1;
   grid-row: 1;
-  color: var(--v2-muted);
+  color: var(--v2-small);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -679,7 +738,7 @@ body.mobile-ui .mobile-trade-info strong {
   overflow: hidden;
   color: var(--v2-ink);
   font-size: clamp(17px, 4.6vw, 21px);
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -690,9 +749,9 @@ body.mobile-ui .mobile-trade-info small {
   grid-row: 2;
   min-width: 0;
   overflow: hidden;
-  color: var(--v2-muted);
+  color: var(--v2-small);
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 600;
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -715,15 +774,15 @@ body.mobile-ui .mobile-trade-dock.is-disabled #mobileTradeMaxBtn {
   border: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: 0;
-  background: linear-gradient(180deg, #75c6d3, #5fc0cc);
-  color: white;
+  background: var(--v2-cyan-block);
+  color: var(--v2-ink);
 }
 
 body.mobile-ui #mobileTradeMaxBtn span,
 body.mobile-ui #mobileTradeMaxBtn strong {
   display: block;
   font-size: clamp(19px, 5vw, 25px);
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1;
 }
 
@@ -738,7 +797,7 @@ body.mobile-ui .mobile-trade-dock.is-disabled .mobile-trade-stepper {
   border: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: 0;
-  background: #e6e3da;
+  background: var(--v2-dock);
 }
 
 body.mobile-ui .mobile-trade-stepper button,
@@ -752,7 +811,7 @@ body.mobile-ui .mobile-trade-stepper input {
   background: transparent;
   color: var(--v2-ink);
   font-size: clamp(20px, 5.4vw, 26px);
-  font-weight: 900;
+  font-weight: 800;
   text-align: center;
 }
 
@@ -774,27 +833,30 @@ body.mobile-ui .mobile-trade-dock.is-disabled #mobileTradePrimaryBtn {
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: linear-gradient(180deg, #858782, #777972);
+  background: var(--v2-muted);
   color: white;
   font-size: clamp(19px, 5.1vw, 25px);
-  font-weight: 900;
+  font-weight: 800;
 }
 
 body.mobile-ui .mobile-trade-dock:not(.is-disabled) #mobileTradeMaxBtn {
-  background: linear-gradient(180deg, #18bdd1, var(--v2-cyan-deep));
+  background: var(--v2-cyan-block);
+  color: var(--v2-ink);
 }
 
 body.mobile-ui .mobile-trade-dock:not(.is-disabled) #mobileTradePrimaryBtn {
-  background: linear-gradient(180deg, #333633, var(--v2-charcoal));
+  background: var(--v2-charcoal);
 }
 
 body.mobile-ui .mobile-trade-dock.mode-sell.is-profit #mobileTradeMaxBtn {
-  background: linear-gradient(180deg, #258a64, #166b4d);
+  background: var(--v2-cyan-block);
+  color: var(--v2-ink);
 }
 
 body.mobile-ui .mobile-trade-dock.mode-sell.is-loss #mobileTradeMaxBtn,
 body.mobile-ui .mobile-trade-dock.mode-sell.is-loss #mobileTradePrimaryBtn {
-  background: linear-gradient(180deg, #d44b43, #aa2f2a);
+  background: var(--v2-red);
+  color: white;
 }
 
 body.mobile-ui .mobile-trade-dock.mode-sell.is-loss .mobile-trade-info span,
@@ -824,14 +886,14 @@ body.mobile-ui .mobile-trade-dock.is-disabled .mobile-trade-stepper {
   }
 
   body.mobile-ui .topbar {
-    grid-template-columns: calc(var(--v2-row-h) * 2) minmax(0, 1fr);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     min-height: calc(var(--v2-row-h) * 2);
     height: calc(var(--v2-row-h) * 2);
   }
 
   body.mobile-ui .top-actions {
-    width: calc(var(--v2-row-h) * 2);
-    min-width: calc(var(--v2-row-h) * 2);
+    width: 100%;
+    min-width: 0;
     height: calc(var(--v2-row-h) * 2);
   }
 
@@ -839,11 +901,6 @@ body.mobile-ui .mobile-trade-dock.is-disabled .mobile-trade-stepper {
     width: 44px;
     height: 44px;
     min-height: 44px;
-    font-size: 24px;
-  }
-
-  body.mobile-ui .top-title-row {
-    gap: 10px;
   }
 
   body.mobile-ui .mini-ticker {
