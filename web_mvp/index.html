@@ -21,6 +21,7 @@
     <link rel="icon" href="./app-icon-192.png" sizes="192x192" type="image/png" />
     <link rel="apple-touch-icon" href="./app-icon-180.png" sizes="180x180" />
     <title>杭州浮生记</title>
+    <link rel="stylesheet" href="./fonts/misans.css" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./layout-v2.css" />
   </head>
@@ -218,7 +219,7 @@
           <span id="mobileTradeModeText">买入</span>
           <strong id="mobileTradeTitle">选择商品</strong>
           <small id="mobileTradeMeta">点选上方商品后交易</small>
-          <small id="productSponsorSlot" class="sponsor-slot"></small>
+          <button id="productSponsorSlot" class="sponsor-slot" type="button"></button>
         </div>
         <div class="mobile-trade-stepper" aria-label="交易数量">
           <button id="mobileQtyMinus" type="button" title="减少">-</button>
@@ -306,7 +307,7 @@
 
     <div id="campaignModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="campaignTitle">
       <div class="modal-card campaign-card">
-        <p class="campaign-label">合作信息</p>
+        <p id="campaignDisclosureLabel" class="campaign-label">合作内容</p>
         <h3 id="campaignTitle"></h3>
         <div id="campaignBody" class="modal-body"></div>
         <div class="modal-actions">
@@ -490,6 +491,7 @@
     </div>
 
     <script src="./config.js"></script>
+    <script src="./assets/gameplay-experiments.js"></script>
     <script src="./platform.js"></script>
     <script src="./main.js"></script>
   </body>

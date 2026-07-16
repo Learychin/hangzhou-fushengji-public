@@ -1,0 +1,5 @@
+This software uses MiSans, copyright Xiaomi Inc.
+Font source: https://hyperos.mi.com/font/en/
+Web usage chunks sourced from misans 4.1.0 (MiSans 4.003): https://github.com/dsrkafuu/misans
+Only pre-generated WOFF2 chunks whose Unicode ranges intersect this game are included.
+The font binaries are not modified by this build step.

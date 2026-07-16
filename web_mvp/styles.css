@@ -21,7 +21,7 @@ html {
 body {
   margin: 0;
   color: var(--text);
-  font-family: "Avenir Next", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  font-family: "MiSans", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   background: linear-gradient(135deg, var(--bg1), var(--bg2));
   min-height: 100%;
   overscroll-behavior-y: contain;
@@ -340,7 +340,7 @@ h1 {
 h2 {
   font-size: 16px;
   margin-bottom: 6px;
-  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-family: "MiSans", sans-serif;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -403,9 +403,13 @@ body.hide-start-auth-ui .start-auth-actions {
   display: none;
 }
 .sponsor-slot {
+  border: 0;
+  padding: 0;
+  background: transparent;
   color: #6f706a;
   font-size: 10px;
   line-height: 1.2;
+  text-align: left;
 }
 .campaign-label {
   margin: 0 0 6px;
@@ -485,7 +489,7 @@ body.hide-start-auth-ui .start-auth-actions {
 }
 .topbar #dayText {
   margin-top: 4px;
-  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-family: "MiSans", sans-serif;
   letter-spacing: 0.06em;
   color: var(--muted);
 }
@@ -529,7 +533,7 @@ body.hide-start-auth-ui .start-auth-actions {
 .kicker {
   color: #8a8d96;
   font-size: 13px;
-  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-family: "MiSans", sans-serif;
   letter-spacing: 0.11em;
   text-transform: uppercase;
 }
@@ -639,7 +643,7 @@ th, td {
 }
 th {
   color: var(--muted);
-  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-family: "MiSans", sans-serif;
   letter-spacing: 0.06em;
   font-size: 12px;
   position: sticky;
@@ -741,7 +745,7 @@ button:disabled {
 .stats strong {
   font-size: 18px;
   line-height: 1.1;
-  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-family: "MiSans", sans-serif;
 }
 #debtStatCard {
   cursor: pointer;
@@ -769,7 +773,7 @@ button:disabled {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #6f7380;
-  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-family: "MiSans", sans-serif;
 }
 
 .ops-row {
@@ -821,7 +825,7 @@ button:disabled {
   font-size: 12px;
   letter-spacing: 0.05em;
   color: #555d6f;
-  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-family: "MiSans", sans-serif;
 }
 .district-items {
   display: grid;
@@ -1250,7 +1254,7 @@ body.mobile-ui .mini-stat span {
 body.mobile-ui .mini-stat strong {
   font-size: 11px;
   line-height: 1.15;
-  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-family: "MiSans", sans-serif;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2003,7 +2007,7 @@ body.mobile-ui .guest-save-actions button {
   text-overflow: ellipsis;
 }
 .news-effect-row span {
-  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-family: "MiSans", sans-serif;
   font-size: 12px;
 }
 .news-effect-row small {
@@ -2290,8 +2294,13 @@ body.mobile-ui .guide-tip-actions button {
   border-color: #9fcfae;
 }
 .end-opening-plan {
+  display: block;
   background: linear-gradient(135deg, #edf7ff, #f8faf7);
   border-color: #b7d6ee;
+}
+.end-bounty-card,
+.end-challenge-card {
+  display: block;
 }
 .end-share-card {
   background: #f8fbff;
@@ -2691,7 +2700,7 @@ body.mobile-ui #repayModal .repay-actions button {
 
 .rank-no {
   color: #687083;
-  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-family: "MiSans", sans-serif;
   font-size: 12px;
 }
 
@@ -3470,6 +3479,25 @@ body.mobile-ui .mobile-trade-info small {
   white-space: nowrap;
 }
 
+body.mobile-ui .mobile-trade-info.has-sponsor #mobileTradeMeta {
+  display: none;
+}
+
+body.mobile-ui .mobile-trade-info .sponsor-slot {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mp-muted);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 body.mobile-ui .mobile-trade-stepper {
   grid-area: stepper;
   display: grid;
@@ -3911,7 +3939,7 @@ body.mobile-ui {
     linear-gradient(90deg, rgba(17, 17, 17, 0.045) 1px, transparent 1px) 0 0 / 64px 64px,
     #d6d4cd;
   color: var(--intl-ink);
-  font-family: Helvetica, Arial, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  font-family: "MiSans", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   font-variant-numeric: tabular-nums;
 }
 
@@ -4704,7 +4732,7 @@ body.mobile-ui {
   --mp-red: #c92018;
   background: var(--mp-bg);
   color: var(--mp-ink);
-  font-family: Helvetica, Arial, "PingFang SC", "Noto Sans SC", sans-serif;
+  font-family: "MiSans", "PingFang SC", "Noto Sans SC", sans-serif;
 }
 
 body.mobile-ui .app {
@@ -4929,7 +4957,7 @@ body.mobile-ui .mini-stat-btn span {
 body.mobile-ui #mobileStatusStrip > .mini-stat:first-child strong {
   margin-top: 9px;
   color: var(--mp-ink);
-  font-family: "DIN Alternate", "Avenir Next Condensed", "SF Pro Display", Helvetica, Arial, sans-serif;
+  font-family: "MiSans", sans-serif;
   font-size: clamp(34px, 10.8vw, 38px);
   font-weight: 900;
   line-height: 0.9;
@@ -4938,7 +4966,7 @@ body.mobile-ui #mobileStatusStrip > .mini-stat:first-child strong {
 body.mobile-ui #miniDebtCard strong {
   margin-top: 8px;
   color: var(--mp-red);
-  font-family: "DIN Alternate", "Avenir Next Condensed", "SF Pro Display", Helvetica, Arial, sans-serif;
+  font-family: "MiSans", sans-serif;
   font-size: 18px;
   font-weight: 900;
   line-height: 1;
@@ -5388,4 +5416,127 @@ body.mobile-ui .mobile-trade-dock.is-disabled .mobile-trade-stepper {
     width: calc(100% - 32px);
     margin: 10px 16px 20px;
   }
+}
++
+.end-feedback-card {
+  border: 1px solid #b7d6ee;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background: #f7fbff;
+  color: #172033;
+}
+.end-feedback-card summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+.end-feedback-card[open] summary {
+  border-bottom: 1px solid #d6deec;
+}
+.end-feedback-form {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+}
+.feedback-scale-caption {
+  display: flex;
+  justify-content: flex-end;
+  gap: 72px;
+  padding-right: 8px;
+  color: #6a7280;
+  font-size: 10px;
+  font-weight: 700;
+}
+.feedback-rating-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.feedback-rating-row > strong {
+  font-size: 12px;
+  line-height: 1.2;
+}
+.feedback-score-scale {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1px solid #c8d8f0;
+}
+.feedback-score {
+  min-width: 0;
+  margin: 0;
+}
+.feedback-score input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.feedback-score span {
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+  border-left: 1px solid #c8d8f0;
+  background: #ffffff;
+  color: #526078;
+  font-size: 13px;
+  font-weight: 800;
+}
+.feedback-score:first-child span {
+  border-left: 0;
+}
+.feedback-score input:checked + span {
+  background: #202326;
+  color: #ffffff;
+}
+.feedback-score input:focus-visible + span {
+  outline: 2px solid #0aa9b8;
+  outline-offset: -2px;
+}
+.feedback-text-field,
+.feedback-quit-field {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  color: #526078;
+  font-size: 11px;
+  font-weight: 800;
+}
+.feedback-text-field textarea,
+.feedback-quit-field input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #c8d8f0;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px;
+}
+.feedback-text-field textarea {
+  resize: vertical;
+}
+#endFeedbackSubmitBtn {
+  min-height: 44px;
+  background: #dff2e6;
+  border-color: #83b998;
+  color: #17291d;
+  font-weight: 900;
+}
+.feedback-status {
+  min-height: 18px;
+  margin: 0;
+  color: #526078;
+  font-size: 11px;
+}
+body.mobile-ui #endModal .end-feedback-card {
+  margin-bottom: 7px;
+}
+body.mobile-ui #endModal .end-feedback-form {
+  gap: 7px;
+  padding: 8px;
 }

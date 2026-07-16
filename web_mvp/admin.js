@@ -6,6 +6,9 @@ let selectedRunId = null;
 let currentRunRows = [];
 let currentCityRows = [];
 let currentCampaignRows = [];
+let currentExperimentRows = [];
+let currentExperimentResults = new Map();
+let currentFeedbackResults = new Map();
 const selectedRunIds = new Set();
 const selectedRunRows = new Map();
 const EMPTY_CITY_CONTENT = {
@@ -79,6 +82,10 @@ function fmtDate(value) {
 function cny(n) {
   return `¥${Number(n || 0).toLocaleString("zh-CN")}`;
 }
+function shortDuration(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  return `${Math.floor(total / 60)}分${String(total % 60).padStart(2, "0")}秒`;
+}
 function esc(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -120,8 +127,20 @@ function cityLabel(cityKey) {
 function campaignStatusLabel(status) {
   return ({ draft: "草稿", active: "投放中", paused: "已暂停", ended: "已结束" })[status] || status || "-";
 }
+function experimentStatusLabel(status) {
+  return ({ draft: "草稿", active: "测试中", paused: "已暂停", archived: "已归档" })[status] || status || "-";
+}
 function campaignTypeLabel(type) {
-  return ({ coupon: "优惠券", event: "本地活动", sponsor_news: "赞助新闻", sponsor_product: "赞助商品" })[type] || type || "-";
+  return ({ coupon: "优惠券", event: "本地活动", sponsor_news: "赞助新闻", sponsor_product: "赞助商品", sponsor_location: "赞助地点", settlement_offer: "结算合作" })[type] || type || "-";
+}
+function campaignPlacementLabel(placement) {
+  return ({ news: "新闻后", product: "商品栏", location: "到达地点", settlement: "结算页" })[placement] || placement || "-";
+}
+function campaignTargetLabel(row = {}) {
+  const type = row.target_entity_type || "";
+  const key = row.target_entity_key ?? "";
+  if (!type || key === "") return "不限";
+  return `${type === "goods" ? "商品" : type === "location" ? "地点" : type} ${key}`;
 }
 function csvList(value) {
   return String(value || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean);
@@ -267,6 +286,15 @@ async function callRpc(name, args) {
   if (data?.error === "forbidden") throw new Error("当前账号没有后台权限。请先用管理员 Google 账号登录游戏。");
   return data || [];
 }
+async function callOptionalRpc(name, args) {
+  try {
+    return await callRpc(name, args);
+  } catch (error) {
+    const message = String(error?.message || error || "");
+    if (/PGRST202|schema cache|could not find the function/i.test(message)) return [];
+    throw error;
+  }
+}
 async function verifyAdmin() {
   const data = await callRpc("admin_overview");
   if (data?.error === "forbidden") throw new Error("当前账号没有后台权限。");
@@ -323,6 +351,46 @@ function renderCities(rows) {
     ));
   });
 }
+function renderExperiments(rows, resultRows = [], feedbackRows = []) {
+  currentExperimentRows = rows || [];
+  currentExperimentResults = new Map((resultRows || []).map((row) => [row.experiment_key, row]));
+  currentFeedbackResults = new Map((feedbackRows || []).map((row) => [row.experiment_key, row]));
+  q("experimentsHint").textContent = `${currentExperimentRows.length} 档内部方案，模式名不向玩家展示`;
+  q("experimentsTable").querySelector("tbody").innerHTML = currentExperimentRows.length ? currentExperimentRows.map((row) => {
+    const result = currentExperimentResults.get(row.experiment_key) || {};
+    const feedback = currentFeedbackResults.get(row.experiment_key) || {};
+    return `
+    <tr>
+      <td>${esc(experimentStatusLabel(row.status))}</td>
+      <td><strong>${esc(row.internal_name)}</strong><div class="cell-sub">${esc(row.experiment_key)}</div></td>
+      <td>${esc(row.hypothesis || "-")}</td>
+      <td>${esc(row.allocation_weight)}</td>
+      <td><strong>${esc(result.run_count || 0)} 局</strong><div class="cell-sub">${esc(result.player_count || 0)} 人｜均分 ${esc(cny(result.avg_score || 0))}</div></td>
+      <td><strong>${esc(result.completion_rate || 0)}% / ${esc(result.replay_player_rate || 0)}%</strong>${Number(result.metrics_run_count || 0) > 0 ? `<div class="cell-sub">均时 ${esc(shortDuration(result.avg_duration_seconds))}｜主操作 ${esc(result.avg_primary_actions || 0)}｜10天回正 ${esc(result.day10_break_even_rate || 0)}%｜有盈利 ${esc(result.profitable_sale_rate || 0)}%</div>` : ""}</td>
+      <td><strong>${esc(feedback.feedback_count || 0)} 条</strong><div class="cell-sub">惊喜 ${esc(feedback.avg_surprise || 0)}｜满足 ${esc(feedback.avg_satisfaction || 0)}｜再来 ${esc(feedback.avg_replay_intent || 0)}</div></td>
+      <td><code class="config-code">${esc(row.config_version)}</code> <button class="run-action-btn experiment-edit-btn" data-experiment-key="${esc(row.experiment_key)}">编辑</button></td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="8" class="empty-cell">还没有玩法实验。</td></tr>`;
+  q("experimentsTable").querySelectorAll(".experiment-edit-btn").forEach((button) => {
+    button.addEventListener("click", () => openExperimentEditor(
+      currentExperimentRows.find((row) => row.experiment_key === button.dataset.experimentKey),
+    ));
+  });
+}
+function renderPlaytestFeedback(rows) {
+  const items = rows || [];
+  q("feedbackHint").textContent = `最近 ${items.length} 条`;
+  q("feedbackTable").querySelector("tbody").innerHTML = items.length ? items.map((row) => `
+    <tr>
+      <td>${esc(fmtDate(row.created_at))}</td>
+      <td><strong>${esc(row.experiment_key)}</strong></td>
+      <td>${esc(cny(row.score))}</td>
+      <td class="cell-sub">惊 ${esc(row.surprise)}｜满 ${esc(row.satisfaction)}｜主 ${esc(row.agency)}｜公 ${esc(row.fairness)}｜再 ${esc(row.replay_intent)}｜享 ${esc(row.share_intent)}</td>
+      <td>${row.quit_day == null ? "-" : `第 ${esc(row.quit_day)} 天`}</td>
+      <td>${esc(row.memorable_moment || "-")}</td>
+    </tr>
+  `).join("") : `<tr><td colspan="6" class="empty-cell">测试期开启反馈后，这里会显示玩家最记得的瞬间。</td></tr>`;
+}
 function renderCampaigns(rows) {
   currentCampaignRows = rows || [];
   q("campaignsHint").textContent = `${rows.length} 条`;
@@ -331,11 +399,12 @@ function renderCampaigns(rows) {
       <td>${esc(campaignStatusLabel(row.status))}</td>
       <td>${esc(cityLabel(row.city_key))}</td>
       <td>${esc(campaignTypeLabel(row.campaign_type))}</td>
+      <td>${esc(campaignPlacementLabel(row.placement_key || row.payload?.placement))}<div class="cell-sub">${esc(campaignTargetLabel(row))} · ${esc(row.disclosure_label || "合作内容")}</div></td>
       <td><strong>${esc(row.title)}</strong><div class="cell-sub">${esc(row.body)}</div></td>
       <td>${esc(fmtDate(row.starts_at))} - ${esc(fmtDate(row.ends_at))}</td>
       <td>${esc(row.weight)} / ${esc(row.frequency_cap)} <button class="run-action-btn campaign-edit-btn" data-campaign-id="${esc(row.id)}">编辑</button></td>
     </tr>
-  `).join("") : `<tr><td colspan="6" class="empty-cell">还没有推广活动。</td></tr>`;
+  `).join("") : `<tr><td colspan="7" class="empty-cell">还没有推广活动。</td></tr>`;
   q("campaignsTable").querySelectorAll(".campaign-edit-btn").forEach((button) => {
     button.addEventListener("click", () => openCampaignEditor(
       currentCampaignRows.find((row) => row.id === button.dataset.campaignId),
@@ -590,11 +659,54 @@ async function saveCityEditor(event) {
     q("adminStatus").textContent = `城市保存失败：${error.message || error}`;
   }
 }
+function openExperimentEditor(row) {
+  if (!row) return;
+  q("experimentKeyInput").value = row.experiment_key || "";
+  q("experimentKeyInput").disabled = true;
+  q("experimentCityInput").value = row.city_key || "hangzhou";
+  q("experimentNameInput").value = row.internal_name || "";
+  q("experimentStatusInput").value = row.status || "draft";
+  q("experimentWeightInput").value = String(row.allocation_weight || 100);
+  q("experimentVersionInput").value = row.config_version || "gameplay-experiments-v1";
+  q("experimentFeedbackInput").checked = row.config?.collectFeedback === true;
+  q("experimentHypothesisInput").value = row.hypothesis || "";
+  q("experimentConfigInput").value = JSON.stringify(row.config || {}, null, 2);
+  q("experimentEditor").classList.remove("hidden");
+}
+function closeExperimentEditor() {
+  q("experimentEditor").classList.add("hidden");
+}
+async function saveExperimentEditor(event) {
+  event.preventDefault();
+  try {
+    const config = JSON.parse(q("experimentConfigInput").value || "{}");
+    config.collectFeedback = q("experimentFeedbackInput").checked;
+    await callRpc("admin_upsert_gameplay_experiment", {
+      p_experiment_key: q("experimentKeyInput").value.trim(),
+      p_city_key: q("experimentCityInput").value.trim() || "hangzhou",
+      p_internal_name: q("experimentNameInput").value.trim(),
+      p_hypothesis: q("experimentHypothesisInput").value.trim(),
+      p_status: q("experimentStatusInput").value,
+      p_allocation_weight: Number(q("experimentWeightInput").value || 100),
+      p_config_version: q("experimentVersionInput").value.trim(),
+      p_config: config,
+    });
+    closeExperimentEditor();
+    q("adminStatus").textContent = "玩法实验已保存。";
+    await refresh();
+  } catch (error) {
+    q("adminStatus").textContent = `实验保存失败：${error.message || error}`;
+  }
+}
 function openCampaignEditor(row = null) {
   const item = row || {};
   q("campaignIdInput").value = item.id || "";
   q("campaignCityInput").value = item.city_key || "hangzhou";
   q("campaignTypeInput").value = item.campaign_type || "sponsor_news";
+  q("campaignPlacementInput").value = item.placement_key || item.payload?.placement || "news";
+  q("campaignTargetTypeInput").value = item.target_entity_type || "";
+  q("campaignTargetKeyInput").value = item.target_entity_key ?? "";
+  q("campaignDisclosureInput").value = item.disclosure_label || item.payload?.disclosure_label || "合作内容";
   q("campaignStatusInput").value = item.status || "draft";
   q("campaignWeightInput").value = String(item.weight || 100);
   q("campaignCapInput").value = String(item.frequency_cap || 1);
@@ -604,7 +716,8 @@ function openCampaignEditor(row = null) {
   q("campaignTitleInput").value = item.title || "";
   q("campaignBodyInput").value = item.body || "";
   q("campaignActionUrlInput").value = item.action_url || "";
-  q("campaignPayloadInput").value = JSON.stringify(item.payload || { placement: "news" }, null, 2);
+  q("campaignPayloadInput").value = JSON.stringify(item.payload || {}, null, 2);
+  q("campaignEconomyInput").value = JSON.stringify(item.economy_effect || {}, null, 2);
   q("campaignEditor").classList.remove("hidden");
 }
 function closeCampaignEditor() {
@@ -614,9 +727,17 @@ async function saveCampaignEditor(event) {
   event.preventDefault();
   try {
     const payload = JSON.parse(q("campaignPayloadInput").value || "{}");
+    const economyEffect = JSON.parse(q("campaignEconomyInput").value || "{}");
+    const placement = q("campaignPlacementInput").value;
+    const targetType = q("campaignTargetTypeInput").value || null;
+    const targetKey = q("campaignTargetKeyInput").value.trim() || null;
+    payload.placement = placement;
+    payload.disclosure_label = q("campaignDisclosureInput").value.trim() || "合作内容";
+    if (targetType === "goods" && targetKey != null) payload.goods_id = targetKey;
+    if (targetType === "location" && targetKey != null) payload.location_id = targetKey;
     const starts = q("campaignStartsInput").value;
     const ends = q("campaignEndsInput").value;
-    await callRpc("admin_upsert_campaign", {
+    await callRpc("admin_upsert_native_campaign", {
       p_id: q("campaignIdInput").value || null,
       p_city_key: q("campaignCityInput").value.trim() || null,
       p_campaign_type: q("campaignTypeInput").value,
@@ -629,6 +750,12 @@ async function saveCampaignEditor(event) {
       p_frequency_cap: Number(q("campaignCapInput").value || 1),
       p_starts_at: starts ? new Date(starts).toISOString() : null,
       p_ends_at: ends ? new Date(ends).toISOString() : null,
+      p_placement_key: placement,
+      p_target_entity_type: targetType,
+      p_target_entity_key: targetKey,
+      p_disclosure_label: payload.disclosure_label,
+      p_creative: {},
+      p_economy_effect: economyEffect,
       p_payload: payload,
     });
     closeCampaignEditor();
@@ -643,16 +770,22 @@ async function refresh() {
   if (!adminVerified) return;
   q("adminStatus").textContent = "读取中...";
   try {
-    const [overview, users, runs, eventSummary, cities, campaigns] = await Promise.all([
+    const [overview, users, runs, eventSummary, cities, experiments, experimentResults, feedbackResults, recentFeedback, campaigns] = await Promise.all([
       callRpc("admin_overview"),
       callRpc("admin_players_v2"),
       callRpc("admin_runs_v2"),
       callRpc("admin_event_summary_v2"),
       callRpc("admin_cities"),
+      callOptionalRpc("admin_gameplay_experiments"),
+      callOptionalRpc("admin_gameplay_experiment_results"),
+      callOptionalRpc("admin_playtest_feedback_results"),
+      callOptionalRpc("admin_recent_playtest_feedback", { p_limit: 100 }),
       callRpc("admin_campaigns"),
     ]);
     renderOverview(overview);
     renderCities(cities);
+    renderExperiments(experiments, experimentResults, feedbackResults);
+    renderPlaytestFeedback(recentFeedback);
     renderCampaigns(campaigns);
     renderUsers(users);
     renderRuns(runs);
@@ -708,6 +841,8 @@ q("runDownloadMdBtn").addEventListener("click", () => { downloadSelectedRunsAsMa
 q("cityCreateBtn").addEventListener("click", () => { openCityEditor(); });
 q("cityEditorCancel").addEventListener("click", () => { closeCityEditor(); });
 q("cityEditorForm").addEventListener("submit", saveCityEditor);
+q("experimentEditorCancel").addEventListener("click", () => { closeExperimentEditor(); });
+q("experimentEditorForm").addEventListener("submit", saveExperimentEditor);
 q("campaignCreateBtn").addEventListener("click", () => { openCampaignEditor(); });
 q("campaignEditorCancel").addEventListener("click", () => { closeCampaignEditor(); });
 q("campaignEditorForm").addEventListener("submit", saveCampaignEditor);

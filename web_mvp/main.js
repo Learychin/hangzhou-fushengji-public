@@ -40,12 +40,109 @@ const CAPACITY_STEP = 10;
 const MARKET_BUY_DISPLAY_LIMIT = 9;
 const LOCAL_RESALE_RATE = 0.9;
 const MAX_NEWS_PRICE_MULTIPLIER = 12;
+const DEFAULT_EXPERIMENT_CONFIG = Object.freeze({
+  experimentId: "control",
+  priceSpanScale: 1,
+  lowGoodsPriceSpanScale: 1,
+  highValuePriceSpanScale: 1,
+  locationSpreadScale: 1,
+  lowGoodsLocationSpreadScale: 1,
+  highValueLocationSpreadScale: 1,
+  locationRareChance: 9,
+  newsSpawnRate: MARKET_NEWS_SPAWN_RATE,
+  newsMinGapDays: MARKET_NEWS_MIN_GAP_DAYS,
+  newsForceAfterDays: MARKET_NEWS_FORCE_AFTER_DAYS,
+  newsEffectScale: 1,
+  smallGoodsStartDay: 3,
+  smallGoodsSwingRate: 14,
+  smallGoodsUpRate: 64,
+  smallGoodsUpMin: 45,
+  smallGoodsUpMax: 115,
+  smallGoodsDownMin: 25,
+  smallGoodsDownMax: 60,
+  jackpotStartDay: 24,
+  jackpotChanceFloor: 4,
+  jackpotChanceCap: 18,
+  jackpotRegularMin: 180,
+  jackpotRegularMax: 420,
+  jackpotSuperRate: 12,
+  jackpotSuperMin: 700,
+  jackpotSuperMax: 1200,
+  jackpotQuotaDistribution: [25, 55, 17, 3],
+  debtGraceRate: 0.03,
+  debtLateRate: 0.055,
+});
 const WAREHOUSE_FEE_TIERS = [
   { uptoExtra: 30, unitFee: 8 },
   { uptoExtra: 80, unitFee: 30 },
   { uptoExtra: 180, unitFee: 120 },
   { uptoExtra: Infinity, unitFee: 280 },
 ];
+
+function clampNumber(value, fallback, min, max) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
+}
+
+function clampInteger(value, fallback, min, max) {
+  return Math.round(clampNumber(value, fallback, min, max));
+}
+
+function normalizeQuotaDistribution(value) {
+  const source = Array.isArray(value) && value.length === 4
+    ? value
+    : DEFAULT_EXPERIMENT_CONFIG.jackpotQuotaDistribution;
+  const weights = source.map((item) => Math.max(0, Number(item) || 0));
+  const total = weights.reduce((sum, item) => sum + item, 0);
+  if (total <= 0) return [0.25, 0.55, 0.17, 0.03];
+  return weights.map((item) => item / total);
+}
+
+function normalizeExperimentConfig(config = {}) {
+  const source = config && typeof config === "object" && !Array.isArray(config) ? config : {};
+  const defaults = DEFAULT_EXPERIMENT_CONFIG;
+  const normalized = {
+    experimentId: String(source.experimentId || source.experiment_id || defaults.experimentId)
+      .replace(/[^a-z0-9_-]/gi, "")
+      .slice(0, 48) || defaults.experimentId,
+    priceSpanScale: clampNumber(source.priceSpanScale, defaults.priceSpanScale, 0.45, 2.2),
+    lowGoodsPriceSpanScale: clampNumber(source.lowGoodsPriceSpanScale, defaults.lowGoodsPriceSpanScale, 0.4, 2.5),
+    highValuePriceSpanScale: clampNumber(source.highValuePriceSpanScale, defaults.highValuePriceSpanScale, 0.35, 2.2),
+    locationSpreadScale: clampNumber(source.locationSpreadScale, defaults.locationSpreadScale, 0.35, 2.5),
+    lowGoodsLocationSpreadScale: clampNumber(source.lowGoodsLocationSpreadScale, defaults.lowGoodsLocationSpreadScale, 0.35, 2.5),
+    highValueLocationSpreadScale: clampNumber(source.highValueLocationSpreadScale, defaults.highValueLocationSpreadScale, 0.35, 2.2),
+    locationRareChance: clampInteger(source.locationRareChance, defaults.locationRareChance, 0, 40),
+    newsSpawnRate: clampInteger(source.newsSpawnRate, defaults.newsSpawnRate, 0, 100),
+    newsMinGapDays: clampInteger(source.newsMinGapDays, defaults.newsMinGapDays, 1, 10),
+    newsForceAfterDays: clampInteger(source.newsForceAfterDays, defaults.newsForceAfterDays, 1, 15),
+    newsEffectScale: clampNumber(source.newsEffectScale, defaults.newsEffectScale, 0.25, 3),
+    smallGoodsStartDay: clampInteger(source.smallGoodsStartDay, defaults.smallGoodsStartDay, 1, TOTAL_DAYS),
+    smallGoodsSwingRate: clampInteger(source.smallGoodsSwingRate, defaults.smallGoodsSwingRate, 0, 100),
+    smallGoodsUpRate: clampInteger(source.smallGoodsUpRate, defaults.smallGoodsUpRate, 0, 100),
+    smallGoodsUpMin: clampInteger(source.smallGoodsUpMin, defaults.smallGoodsUpMin, 0, 1000),
+    smallGoodsUpMax: clampInteger(source.smallGoodsUpMax, defaults.smallGoodsUpMax, 0, 1200),
+    smallGoodsDownMin: clampInteger(source.smallGoodsDownMin, defaults.smallGoodsDownMin, 0, 95),
+    smallGoodsDownMax: clampInteger(source.smallGoodsDownMax, defaults.smallGoodsDownMax, 0, 95),
+    jackpotStartDay: clampInteger(source.jackpotStartDay, defaults.jackpotStartDay, 1, TOTAL_DAYS),
+    jackpotChanceFloor: clampInteger(source.jackpotChanceFloor, defaults.jackpotChanceFloor, 0, 100),
+    jackpotChanceCap: clampInteger(source.jackpotChanceCap, defaults.jackpotChanceCap, 0, 100),
+    jackpotRegularMin: clampInteger(source.jackpotRegularMin, defaults.jackpotRegularMin, 0, 1200),
+    jackpotRegularMax: clampInteger(source.jackpotRegularMax, defaults.jackpotRegularMax, 0, 1200),
+    jackpotSuperRate: clampInteger(source.jackpotSuperRate, defaults.jackpotSuperRate, 0, 100),
+    jackpotSuperMin: clampInteger(source.jackpotSuperMin, defaults.jackpotSuperMin, 0, 1200),
+    jackpotSuperMax: clampInteger(source.jackpotSuperMax, defaults.jackpotSuperMax, 0, 1200),
+    jackpotQuotaDistribution: normalizeQuotaDistribution(source.jackpotQuotaDistribution),
+    debtGraceRate: clampNumber(source.debtGraceRate, defaults.debtGraceRate, 0, 0.2),
+    debtLateRate: clampNumber(source.debtLateRate, defaults.debtLateRate, 0, 0.25),
+  };
+  normalized.newsForceAfterDays = Math.max(normalized.newsMinGapDays, normalized.newsForceAfterDays);
+  normalized.smallGoodsUpMax = Math.max(normalized.smallGoodsUpMin, normalized.smallGoodsUpMax);
+  normalized.smallGoodsDownMax = Math.max(normalized.smallGoodsDownMin, normalized.smallGoodsDownMax);
+  normalized.jackpotChanceCap = Math.max(normalized.jackpotChanceFloor, normalized.jackpotChanceCap);
+  normalized.jackpotRegularMax = Math.max(normalized.jackpotRegularMin, normalized.jackpotRegularMax);
+  normalized.jackpotSuperMax = Math.max(normalized.jackpotSuperMin, normalized.jackpotSuperMax);
+  return normalized;
+}
 
 function localResalePrice(buyPrice) {
   return Math.max(1, Math.floor((Number(buyPrice) || 0) * LOCAL_RESALE_RATE));
@@ -168,7 +265,9 @@ function getCareerStageState(score, achievedIndex = 0) {
 }
 
 class GameEngine {
-  constructor() {
+  constructor(options = {}) {
+    this.experimentConfig = normalizeExperimentConfig(options.experimentConfig || options.experiment || options);
+    this.experimentKey = this.experimentConfig.experimentId;
     this.goods = [
       { id: 0, name: "便利店特调饮料", kind: "physical", weight: 1, base: 6, span: 54 },
       { id: 1, name: "景区文创冰箱贴", kind: "physical", weight: 1, base: 16, span: 180 },
@@ -298,12 +397,15 @@ class GameEngine {
     this.coffeeCost = 30;
     this.rumorBuff = null;
     this.activeNews = [];
+    this.pendingNewsStages = [];
+    this.recentNewsTemplateIds = [];
     this.lastNewsSpawnDay = 0;
     this.lastNewsPopups = [];
     this.lastNewsPopupStrength = 0;
     this.todayNews = null;
     this.newsPool = [
       {
+        id: "city-tourism",
         title: "【杭州文旅热度攀升】",
         desc: "假期客流叠加夜游活动，文旅消费情绪走强。",
         durationMin: 2,
@@ -314,6 +416,7 @@ class GameEngine {
         ],
       },
       {
+        id: "compute-demand",
         title: "【算力与硬件需求升温】",
         desc: "多家科技公司集中扩容，硬件与算力报价抬升。",
         durationMin: 2,
@@ -324,6 +427,7 @@ class GameEngine {
         ],
       },
       {
+        id: "cross-border-delay",
         title: "【跨境履约受阻】",
         desc: "物流与清关节奏放缓，跨境链路出现折价抛盘。",
         durationMin: 2,
@@ -334,6 +438,7 @@ class GameEngine {
         ],
       },
       {
+        id: "capital-rotation",
         title: "【资本风格切换】",
         desc: "资金从稳健品撤离，向高波动品集中。",
         durationMin: 2,
@@ -344,6 +449,7 @@ class GameEngine {
         ],
       },
       {
+        id: "consumer-inspection",
         title: "【消费监管趋严】",
         desc: "平台抽检和营销规范升级，部分热门品类承压。",
         durationMin: 2,
@@ -353,6 +459,178 @@ class GameEngine {
           { goodsIds: [3, 4], minPct: 8, maxPct: 20, tag: "稀缺" },
         ],
       },
+      {
+        id: "lake-queue-rumor",
+        chainId: "lake-queue",
+        stage: "signal",
+        weight: 90,
+        nextId: "lake-queue-report",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【湖滨队伍拐了三个弯】",
+        desc: "路人看见队伍就跟着排，前七位都说不清在买什么。",
+        durationMin: 2,
+        durationMax: 2,
+        effects: [
+          { goodsIds: [0, 1], minPct: 8, maxPct: 22, tag: "围观" },
+        ],
+      },
+      {
+        id: "lake-queue-report",
+        chainId: "lake-queue",
+        stage: "payoff",
+        entry: false,
+        title: "【排到第八位，终于问明白了】",
+        desc: "一家小店发售会反光的联名冰箱贴；队伍知道答案后，排得更长了。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [1], minPct: 70, maxPct: 120, tag: "爆单" },
+          { goodsIds: [11], minPct: -18, maxPct: -6, tag: "失宠" },
+        ],
+      },
+      {
+        id: "ai-companion-launch",
+        chainId: "ai-companion-service",
+        stage: "signal",
+        weight: 85,
+        nextId: "ai-companion-complaint",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【桌面搭子突然走红】",
+        desc: "新品号称能陪聊、记事、控灯，首批预约一路排到下周。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [18], minPct: 24, maxPct: 42, tag: "新品" },
+          { goodsIds: [6], minPct: 8, maxPct: 18, tag: "算力" },
+        ],
+      },
+      {
+        id: "ai-companion-complaint",
+        chainId: "ai-companion-service",
+        stage: "reversal",
+        entry: false,
+        nextId: "ai-companion-update",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【说好陪聊，到家只劝充电】",
+        desc: "消费者发现它最熟练的一句话是“电量不足”；负责人正在开会，且会议很有续航。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [18], minPct: -58, maxPct: -36, tag: "投诉" },
+          { goodsIds: [2], minPct: 12, maxPct: 28, tag: "刚需" },
+        ],
+      },
+      {
+        id: "ai-companion-update",
+        chainId: "ai-companion-service",
+        stage: "resolution",
+        entry: false,
+        title: "【记者到场，会议准时结束】",
+        desc: "厂商连夜推送固件并延长退换期，桌面搭子终于学会了第二句话。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [18], minPct: 48, maxPct: 82, tag: "修复" },
+          { goodsIds: [2], minPct: -16, maxPct: -6, tag: "降温" },
+        ],
+      },
+      {
+        id: "coupon-poster",
+        chainId: "coupon-rules",
+        stage: "signal",
+        weight: 75,
+        nextId: "coupon-checkout",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【消费券海报写得很大】",
+        desc: "“不限使用张数”吸引顾客下单，妆造和文旅套餐先热了一轮。",
+        durationMin: 2,
+        durationMax: 2,
+        effects: [
+          { goodsIds: [5, 9], minPct: 16, maxPct: 34, tag: "促销" },
+        ],
+      },
+      {
+        id: "coupon-checkout",
+        chainId: "coupon-rules",
+        stage: "reversal",
+        entry: false,
+        nextId: "coupon-mediation",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【到了收银台，只能用一张】",
+        desc: "海报、客服和结算系统第一次正式见面，三方对活动规则各有理解。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [5, 9], minPct: -48, maxPct: -28, tag: "纠纷" },
+          { goodsIds: [11], minPct: 8, maxPct: 20, tag: "替代" },
+        ],
+      },
+      {
+        id: "coupon-mediation",
+        chainId: "coupon-rules",
+        stage: "resolution",
+        entry: false,
+        title: "【规则终于同步成功】",
+        desc: "调解后商家补兑并重写页面，消费者拿到了券，文案也拿到了标点。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [5, 9], minPct: 18, maxPct: 32, tag: "回暖" },
+        ],
+      },
+      {
+        id: "repair-search-results",
+        chainId: "official-repair-search",
+        stage: "signal",
+        weight: 70,
+        nextId: "repair-two-hours",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【搜索一开，全是官方售后】",
+        desc: "页面从官方专修排到官方直营网点，唯一没统一的是客服电话。",
+        durationMin: 2,
+        durationMax: 2,
+        effects: [
+          { goodsIds: [10], minPct: 18, maxPct: 34, tag: "维修热" },
+          { goodsIds: [2], minPct: 8, maxPct: 18, tag: "备用" },
+        ],
+      },
+      {
+        id: "repair-two-hours",
+        chainId: "official-repair-search",
+        stage: "reversal",
+        entry: false,
+        nextId: "repair-real-official",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【主板换好两小时，又很有主见】",
+        desc: "维修点建议再换一块；机器建议大家先冷静，虽然它自己不制冷。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [10], minPct: -52, maxPct: -34, tag: "返修" },
+          { goodsIds: [2], minPct: 16, maxPct: 30, tag: "刚需" },
+        ],
+      },
+      {
+        id: "repair-real-official",
+        chainId: "official-repair-search",
+        stage: "resolution",
+        entry: false,
+        title: "【真正官方终于接通】",
+        desc: "客服先确认维修点不是他们的，再确认搜索结果也不是他们排的。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [10], minPct: 24, maxPct: 44, tag: "正品" },
+          { goodsIds: [2], minPct: -14, maxPct: -6, tag: "降温" },
+        ],
+      },
     ];
     this.newGame();
   }
@@ -360,6 +638,9 @@ class GameEngine {
   configureCityContent(config = {}) {
     if (!config || typeof config !== "object" || Array.isArray(config)) return false;
     let changed = false;
+
+    const experiment = config.gameplay_experiment || config.experiment_config;
+    if (experiment && this.configureExperiment(experiment)) changed = true;
 
     const productRows = Array.isArray(config.product_overrides)
       ? config.product_overrides
@@ -415,7 +696,7 @@ class GameEngine {
 
     if (Array.isArray(config.news_pool) && config.news_pool.length) {
       const goodsIds = new Set(this.goods.map((goods) => goods.id));
-      const newsPool = config.news_pool.map((row) => {
+      const newsPool = config.news_pool.map((row, index) => {
         const effects = (Array.isArray(row?.effects) ? row.effects : []).map((effect) => {
           const ids = (Array.isArray(effect?.goodsIds) ? effect.goodsIds : [])
             .map(Number)
@@ -433,6 +714,14 @@ class GameEngine {
         const title = String(row?.title || "").trim().slice(0, 80);
         if (!title || !effects.length) return null;
         return {
+          id: String(row?.id || `news-${index + 1}`).replace(/[^a-z0-9_-]/gi, "").slice(0, 64),
+          chainId: String(row?.chainId || row?.chain_id || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 64),
+          stage: String(row?.stage || "single").replace(/[^a-z0-9_-]/gi, "").slice(0, 24),
+          entry: row?.entry !== false,
+          weight: Math.max(1, Math.min(1000, Math.floor(Number(row?.weight) || 100))),
+          nextId: String(row?.nextId || row?.next_id || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 64),
+          nextDelayMin: Math.max(1, Math.min(8, Math.floor(Number(row?.nextDelayMin || row?.next_delay_min) || 2))),
+          nextDelayMax: Math.max(1, Math.min(10, Math.floor(Number(row?.nextDelayMax || row?.next_delay_max) || 3))),
           title,
           desc: String(row?.desc || "").trim().slice(0, 180),
           durationMin: Math.max(1, Math.min(6, Math.floor(Number(row.durationMin) || 2))),
@@ -447,6 +736,14 @@ class GameEngine {
     }
 
     this.cityContentKey = String(config.content_schema || config.scene_key || "city-content-v1").slice(0, 80);
+    return changed;
+  }
+
+  configureExperiment(config = {}) {
+    const next = normalizeExperimentConfig(config);
+    const changed = JSON.stringify(next) !== JSON.stringify(this.experimentConfig);
+    this.experimentConfig = next;
+    this.experimentKey = next.experimentId;
     return changed;
   }
 
@@ -471,12 +768,17 @@ class GameEngine {
     this.inv = [];
     this.logs = [`新游戏开始：欢迎来到杭州。${TOTAL_DAYS} 天交易局。 版本代号 ${GAME_VERSION_CODE}`];
     this.eventLog = [];
-    this.recordEvent("system", this.logs[0], { version: GAME_VERSION_CODE });
+    this.recordEvent("system", this.logs[0], {
+      version: GAME_VERSION_CODE,
+      experiment_id: this.experimentConfig.experimentId,
+    });
     this.lastMarketPopups = [];
     this.rumor = null;
     this.lastRumorLoc = 0;
     this.rumorBuff = null;
     this.activeNews = [];
+    this.pendingNewsStages = [];
+    this.recentNewsTemplateIds = [];
     this.todayNews = {
       title: "【市场开盘】",
       desc: "先跑动起来，第一轮行情会在换地方后生成。",
@@ -502,11 +804,14 @@ class GameEngine {
   get cityLabels() { return this.locations; }
 
   rollMagicEventQuota() {
-    const r = this.rnd(100);
-    if (r < 25) return 0;
-    if (r < 80) return 1;
-    if (r < 97) return 2;
-    return 3;
+    const weights = this.experimentConfig.jackpotQuotaDistribution;
+    const r = Math.random();
+    let cursor = 0;
+    for (let quota = 0; quota < weights.length; quota += 1) {
+      cursor += weights[quota];
+      if (r < cursor) return quota;
+    }
+    return weights.length - 1;
   }
 
   addLog(msg, type = "log", payload = {}) {
@@ -546,6 +851,7 @@ class GameEngine {
       daysUsed: this.daysUsed,
       totalDays: TOTAL_DAYS,
       currentLoc: this.currentLoc,
+      experimentId: this.experimentConfig.experimentId,
       starterBufferUsed: this.starterBufferUsed || 0,
       careerStageIndex: this.careerStageIndex || 0,
     };
@@ -571,7 +877,12 @@ class GameEngine {
     if (r < 15) ratio = 0.12 + this.rnd(23) / 100; // 0.12 ~ 0.34
     else if (r < 25) ratio = 0.66 + this.rnd(27) / 100; // 0.66 ~ 0.92
     else ratio = 0.35 + this.rnd(31) / 100; // 0.35 ~ 0.65
-    return Math.max(1, Math.floor(base + span * ratio));
+    const tierScale = base <= 2500
+      ? this.experimentConfig.lowGoodsPriceSpanScale
+      : (base >= 7000 ? this.experimentConfig.highValuePriceSpanScale : 1);
+    const scaledRatio = Math.max(0.04, Math.min(1.2,
+      0.5 + (ratio - 0.5) * this.experimentConfig.priceSpanScale * tierScale));
+    return Math.max(1, Math.floor(base + span * scaledRatio));
   }
 
   makeDrugPrices(leaveout) {
@@ -669,10 +980,14 @@ class GameEngine {
       for (const g of this.goods) {
         // 常规地区差价收窄；大波动交给新闻和离谱事件，玩家更容易理解原因。
         let k = 0.86 + this.rnd(31) / 100; // 0.86 ~ 1.16
-        if (this.rnd(100) < 9) {
+        if (this.rnd(100) < this.experimentConfig.locationRareChance) {
           k = 0.62 + this.rnd(77) / 100; // 0.62 ~ 1.38
         }
-        row[g.id] = k;
+        const tierScale = g.base <= 2500
+          ? this.experimentConfig.lowGoodsLocationSpreadScale
+          : (g.base >= 7000 ? this.experimentConfig.highValueLocationSpreadScale : 1);
+        row[g.id] = Math.max(0.2,
+          1 + (k - 1) * this.experimentConfig.locationSpreadScale * tierScale);
       }
       this.locMultipliers.push(row);
     }
@@ -723,19 +1038,25 @@ class GameEngine {
 
   prepareNewsForDay() {
     const currentDay = this.nextDayNumber;
+    const config = this.experimentConfig;
     this.activeNews = (this.activeNews || []).filter((n) => n.expiresOnDay >= currentDay);
     this.lastNewsPopups = [];
     this.lastNewsPopupStrength = 0;
 
     const daysSinceNews = currentDay - Math.max(0, Number(this.lastNewsSpawnDay || 0));
-    const gapReady = this.lastNewsSpawnDay === 0 || daysSinceNews >= MARKET_NEWS_MIN_GAP_DAYS;
-    const forceNews = this.lastNewsSpawnDay > 0 && daysSinceNews >= MARKET_NEWS_FORCE_AFTER_DAYS;
-    if (gapReady && (forceNews || this.rnd(100) < MARKET_NEWS_SPAWN_RATE)) {
-      const tpl = this.newsPool[this.rnd(this.newsPool.length)];
+    const gapReady = this.lastNewsSpawnDay === 0 || daysSinceNews >= config.newsMinGapDays;
+    const forceNews = this.lastNewsSpawnDay > 0 && daysSinceNews >= config.newsForceAfterDays;
+    const pendingIndex = (this.pendingNewsStages || []).findIndex((item) => item.dueDay <= currentDay);
+    const pending = pendingIndex >= 0 ? this.pendingNewsStages[pendingIndex] : null;
+    if (gapReady && (pending || forceNews || this.rnd(100) < config.newsSpawnRate)) {
+      const tpl = pending?.template || this.pickNewsTemplate();
+      if (!tpl) return;
+      if (pendingIndex >= 0) this.pendingNewsStages.splice(pendingIndex, 1);
       const duration = tpl.durationMin + this.rnd(tpl.durationMax - tpl.durationMin + 1);
       const impacts = tpl.effects.map((effect) => {
         const goodsId = effect.goodsIds[this.rnd(effect.goodsIds.length)];
-        const pct = effect.minPct + this.rnd(effect.maxPct - effect.minPct + 1);
+        const rawPct = effect.minPct + this.rnd(effect.maxPct - effect.minPct + 1);
+        const pct = Math.max(-95, Math.min(1200, Math.round(rawPct * config.newsEffectScale)));
         return {
           goodsId,
           pct,
@@ -746,11 +1067,16 @@ class GameEngine {
         id: `${currentDay}-${Date.now()}-${this.rnd(9999)}`,
         title: tpl.title,
         desc: tpl.desc,
+        templateId: tpl.id || "",
+        chainId: tpl.chainId || "",
+        stage: tpl.stage || "single",
         day: currentDay,
         expiresOnDay: currentDay + duration - 1,
         impacts,
       };
       this.activeNews.push(news);
+      this.rememberNewsTemplate(tpl);
+      this.scheduleNewsFollowUp(tpl, currentDay);
       this.queueNewsPopup(news);
       const impactText = impacts
         .map((x) => `${this.goods[x.goodsId]?.name || "未知商品"}${x.pct > 0 ? "+" : ""}${x.pct}%`)
@@ -759,6 +1085,9 @@ class GameEngine {
         day: currentDay,
         expires_on_day: news.expiresOnDay,
         impacts,
+        template_id: news.templateId,
+        chain_id: news.chainId,
+        chain_stage: news.stage,
       });
     }
     this.maybeCreateSmallGoodsSwingNews(currentDay);
@@ -766,12 +1095,46 @@ class GameEngine {
     this.refreshTodayNews(currentDay);
   }
 
+  pickNewsTemplate() {
+    const entries = (this.newsPool || []).filter((template) => template.entry !== false);
+    if (!entries.length) return null;
+    const recent = new Set((this.recentNewsTemplateIds || []).slice(-3));
+    const fresh = entries.filter((template) => !recent.has(template.id));
+    const candidates = fresh.length ? fresh : entries;
+    const totalWeight = candidates.reduce((sum, template) => sum + Math.max(1, Number(template.weight) || 100), 0);
+    let cursor = this.rnd(Math.max(1, Math.floor(totalWeight)));
+    for (const template of candidates) {
+      cursor -= Math.max(1, Number(template.weight) || 100);
+      if (cursor < 0) return template;
+    }
+    return candidates[candidates.length - 1];
+  }
+
+  rememberNewsTemplate(template) {
+    if (!template?.id) return;
+    this.recentNewsTemplateIds = [...(this.recentNewsTemplateIds || []), template.id].slice(-8);
+  }
+
+  scheduleNewsFollowUp(template, currentDay) {
+    if (!template?.nextId) return false;
+    const next = (this.newsPool || []).find((candidate) => candidate.id === template.nextId);
+    if (!next) return false;
+    const minDelay = Math.max(1, Number(template.nextDelayMin) || 2);
+    const maxDelay = Math.max(minDelay, Number(template.nextDelayMax) || minDelay);
+    const dueDay = Math.min(TOTAL_DAYS, currentDay + minDelay + this.rnd(maxDelay - minDelay + 1));
+    this.pendingNewsStages = (this.pendingNewsStages || [])
+      .filter((item) => item.template?.id !== next.id);
+    this.pendingNewsStages.push({ dueDay, template: next });
+    this.pendingNewsStages.sort((left, right) => left.dueDay - right.dueDay);
+    return true;
+  }
+
   queueNewsPopup(news) {
     if (!news) return;
     const newsDay = Number(news.day || this.nextDayNumber);
     const sameDay = newsDay === Number(this.lastNewsSpawnDay || 0);
     if (!sameDay && this.lastNewsSpawnDay > 0
-      && newsDay - this.lastNewsSpawnDay < MARKET_NEWS_MIN_GAP_DAYS) return;
+      && newsDay - this.lastNewsSpawnDay < this.experimentConfig.newsMinGapDays) return;
     const impacts = (news.impacts || []).map((impact) => {
       const goods = this.goods.find((item) => item.id === impact.goodsId);
       return `${goods?.name || "未知商品"} ${impact.pct > 0 ? "+" : ""}${impact.pct}%`;
@@ -786,12 +1149,15 @@ class GameEngine {
   }
 
   maybeCreateSmallGoodsSwingNews(currentDay) {
-    if (currentDay < 3 || this.rnd(100) >= 14) return false;
+    const config = this.experimentConfig;
+    if (currentDay < config.smallGoodsStartDay || this.rnd(100) >= config.smallGoodsSwingRate) return false;
     const candidates = this.goods.filter((g) => g.base <= 2500);
     if (!candidates.length) return false;
     const goods = candidates[this.rnd(candidates.length)];
-    const isUp = this.rnd(100) < 64;
-    const pct = isUp ? 45 + this.rnd(71) : -(25 + this.rnd(36));
+    const isUp = this.rnd(100) < config.smallGoodsUpRate;
+    const pct = isUp
+      ? config.smallGoodsUpMin + this.rnd(config.smallGoodsUpMax - config.smallGoodsUpMin + 1)
+      : -(config.smallGoodsDownMin + this.rnd(config.smallGoodsDownMax - config.smallGoodsDownMin + 1));
     const duration = 2 + this.rnd(2);
     const title = isUp ? "【小商品爆单】" : "【小商品塌价】";
     const desc = isUp
@@ -817,7 +1183,8 @@ class GameEngine {
   }
 
   maybeCreateHeldJackpotNews(currentDay) {
-    if (currentDay < 24) return false;
+    const config = this.experimentConfig;
+    if (currentDay < config.jackpotStartDay) return false;
     const candidates = (this.inv || []).filter((item) => {
       const goods = this.goods.find((g) => g.id === item.id);
       return goods && goods.base <= 12000;
@@ -826,13 +1193,16 @@ class GameEngine {
     if ((this.magicEventTriggered || 0) >= (this.magicEventQuota || 0)) return false;
     const remainingQuota = (this.magicEventQuota || 0) - (this.magicEventTriggered || 0);
     const remainingDays = Math.max(1, TOTAL_DAYS - currentDay + 1);
-    const chance = Math.min(18, Math.max(4, Math.ceil((remainingQuota / remainingDays) * 100)));
+    const chance = Math.min(config.jackpotChanceCap,
+      Math.max(config.jackpotChanceFloor, Math.ceil((remainingQuota / remainingDays) * 100)));
     if (this.rnd(100) >= chance) return false;
     const held = candidates[this.rnd(candidates.length)];
     const goods = this.goods.find((g) => g.id === held.id);
     if (!goods) return false;
-    const superSpike = currentDay >= 36 && this.rnd(100) < 12;
-    const pct = superSpike ? 700 + this.rnd(501) : 180 + this.rnd(241);
+    const superSpike = currentDay >= 36 && this.rnd(100) < config.jackpotSuperRate;
+    const pct = superSpike
+      ? config.jackpotSuperMin + this.rnd(config.jackpotSuperMax - config.jackpotSuperMin + 1)
+      : config.jackpotRegularMin + this.rnd(config.jackpotRegularMax - config.jackpotRegularMin + 1);
     const duration = 1 + this.rnd(2);
     const news = {
       id: `jackpot-${currentDay}-${Date.now()}-${this.rnd(9999)}`,
@@ -931,7 +1301,9 @@ class GameEngine {
 
   handleCashDebt() {
     const graceDays = Math.max(3, Math.ceil(TOTAL_DAYS * 0.16));
-    const rate = this.daysUsed < graceDays ? 0.03 : 0.055;
+    const rate = this.daysUsed < graceDays
+      ? this.experimentConfig.debtGraceRate
+      : this.experimentConfig.debtLateRate;
     this.debt = this.debt + Math.floor(this.debt * rate);
     const dailyBankRate = 0.01;
     this.bank = this.bank + Math.floor(this.bank * dailyBankRate);
@@ -1603,6 +1975,8 @@ const HZFSJEngine = {
   MARKET_BUY_DISPLAY_LIMIT,
   LOCAL_RESALE_RATE,
   MAX_NEWS_PRICE_MULTIPLIER,
+  DEFAULT_EXPERIMENT_CONFIG,
+  normalizeExperimentConfig,
   localResalePrice,
   marketDepthForGoods,
   marketSaleQuote,
@@ -1638,6 +2012,7 @@ const {
   maxAffordableBuyCount,
   warehouseDailyFeeForCapacity,
   capacityStepCost,
+  normalizeCapacityTarget,
   buildCapacityPlan,
   getCareerStageState,
 } = globalThis.HZFSJEngine || {};
@@ -1645,7 +2020,6 @@ const {
 if (!GameEngine) {
   throw new Error("HZFSJEngine is not loaded before main.js");
 }
-window.BFSJ_GAME_VERSION = GAME_VERSION_CODE;
 
 const ACTIVE_RUN_KEY = "bfsj_active_run_v1";
 const PENDING_RUN_KEY = "bfsj_pending_run";
@@ -1656,9 +2030,14 @@ const LOCAL_RUN_STATS_KEY = "bfsj_local_run_stats";
 const EVENT_LOG_LIMIT = 800;
 const ENABLE_RANDOM_EVENT_POPUPS = false;
 const ENABLE_STATUS_SYSTEM = false;
-const HIDE_AUTH_UI = false;
+const HIDE_AUTH_UI = true;
 const HIDE_START_AUTH_UI = true;
 const game = new GameEngine();
+const bootCityConfig = window.BFSJ_PLATFORM?.runtime?.city?.config;
+if (bootCityConfig?.gameplay_experiment || bootCityConfig?.experiment_config) {
+  game.configureCityContent(bootCityConfig);
+  game.newGame();
+}
 let selectedMarket = null;
 let selectedInv = null;
 let modalQueue = [];
@@ -1666,6 +2045,7 @@ let runId = 1;
 let lastRecordedEndStatsRunId = null;
 let runStartedAtMs = Date.now();
 let runEndedElapsedSeconds = null;
+let runPrimaryActionCount = 0;
 let savedRunId = null;
 let saveFailedRunId = null;
 let saveInFlight = false;
@@ -1675,6 +2055,7 @@ let lastPresenceTrackAt = 0;
 let startPromptShown = false;
 let endPromptRunId = null;
 let runUploadConsent = null;
+let endFeedbackSubmittedRunId = null;
 let guestRunClaimToken = null;
 let runPublished = false;
 let activeCampaign = null;
@@ -1697,6 +2078,7 @@ let lastDebtGuideTradeKey = null;
 let lastBuyHundredTradeKey = null;
 let lastTradeFeedbackKey = null;
 let lastPrimaryBuyDay = null;
+let lastExpansionPromptDay = null;
 let profitStreak = 0;
 let maxProfitStreak = 0;
 let runBestProfit = 0;
@@ -1736,6 +2118,8 @@ const cloud = {
   onlinePlayers: [],
 };
 const ACTIVE_RUN_GAME_FIELDS = [
+  "experimentConfig",
+  "experimentKey",
   "goods",
   "marketEvents",
   "tradeEvents",
@@ -1800,6 +2184,7 @@ function activeRunSnapshot() {
       selectedInv,
       runId,
       elapsedSeconds: getRunElapsedSeconds(),
+      runPrimaryActionCount,
       lastCelebratedTradeKey,
       lastDebtGuideTradeKey,
       lastBuyHundredTradeKey,
@@ -1855,6 +2240,7 @@ function restoreActiveRunSnapshot() {
     runId = Number.isFinite(Number(ui.runId)) ? Math.max(1, Number(ui.runId)) : runId;
     runStartedAtMs = Date.now() - Math.max(0, Number(ui.elapsedSeconds || 0)) * 1000;
     runEndedElapsedSeconds = null;
+    runPrimaryActionCount = Math.max(0, Number(ui.runPrimaryActionCount || 0));
     lastCelebratedTradeKey = ui.lastCelebratedTradeKey || null;
     lastDebtGuideTradeKey = ui.lastDebtGuideTradeKey || null;
     lastBuyHundredTradeKey = ui.lastBuyHundredTradeKey || null;
@@ -1882,6 +2268,7 @@ function restoreActiveRunSnapshot() {
       window.BFSJ_PLATFORM?.beginRun?.({
         clientRunId: ui.platform.client_run_id,
         shareCode: ui.platform.share_code,
+        experimentKey: game.experimentKey || game.experimentConfig?.experimentId || ui.platform.experiment_key,
       });
     }
     guestRunClaimToken = null;
@@ -2056,6 +2443,7 @@ function tryStartRecommendedAction(lockMs = 260) {
 }
 function runRecommendedAction(action) {
   if (!tryStartRecommendedAction()) return false;
+  runPrimaryActionCount += 1;
   return action();
 }
 function cnyCompact(n) {
@@ -2208,13 +2596,14 @@ function canExpandNow() {
 }
 function expansionOpportunity() {
   if (game.gameOver || !canExpandNow()) return null;
+  if (lastExpansionPromptDay === game.daysUsed) return null;
   const capacity = Math.max(1, game.coat);
   const items = Math.max(0, game.totalItems || 0);
   const nearlyFull = items >= capacity || items >= Math.max(0, capacity - 6) || items / capacity >= 0.88;
   if (!nearlyFull) return null;
-  const affordable = affordableCapacityByCash();
-  if (!affordable.gain) return null;
-  return { ...affordable, items, capacity };
+  const recommended = recommendedCapacityExpansion();
+  if (!recommended.gain) return null;
+  return { ...recommended, items, capacity };
 }
 function debtRepayOpportunity() {
   if (game.gameOver || game.debt <= 0) return null;
@@ -2377,6 +2766,7 @@ function travelToLocation(locIdx) {
     marketRefreshPending = true;
   }
   render();
+  if (game.currentLoc !== prevLoc) maybeDeliverLocationCampaign(game.currentLoc);
 }
 function detectMobileUi() {
   const coarse = window.matchMedia?.("(pointer: coarse)").matches;
@@ -2574,9 +2964,49 @@ function normalizeEventRows(events, userId, runCloudId) {
     created_at: event.created_at || new Date().toISOString(),
   }));
 }
+function buildPlaytestMetrics() {
+  const events = Array.isArray(game.eventLog) ? game.eventLog : [];
+  const netWorth = (state = {}) => Number(state.cash || 0) + Number(state.bank || 0) - Number(state.debt || 0);
+  const eventCounts = summarizeEvents(events);
+  const firstProfitableSale = events.find((event) => (
+    event?.event_type === "trade"
+    && event?.payload?.side === "sell"
+    && Number(event?.payload?.pnl || 0) > 0
+  ));
+  const firstBreakEven = events.find((event) => netWorth(event?.state) >= 0);
+  const profitableSales = events.filter((event) => (
+    event?.event_type === "trade"
+    && event?.payload?.side === "sell"
+    && Number(event?.payload?.pnl || 0) > 0
+  ));
+  const checkpointNetWorth = {};
+  for (const day of [5, 10, 15]) {
+    const checkpoint = events.find((event) => Number(event?.day || 0) >= day);
+    checkpointNetWorth[String(day)] = checkpoint ? netWorth(checkpoint.state) : null;
+  }
+  const completedChains = new Set(
+    events
+      .filter((event) => event?.event_type === "market_news" && Number(event?.payload?.chain_stage || 0) >= 2)
+      .map((event) => String(event.payload.chain_id || ""))
+      .filter(Boolean),
+  );
+  return {
+    duration_seconds: runEndedElapsedSeconds ?? getRunElapsedSeconds(),
+    primary_action_count: runPrimaryActionCount,
+    checkpoint_net_worth: checkpointNetWorth,
+    first_profitable_sale_day: firstProfitableSale ? Number(firstProfitableSale.day || 0) : null,
+    first_break_even_day: firstBreakEven ? Number(firstBreakEven.day || 0) : null,
+    profitable_sale_count: profitableSales.length,
+    max_single_profit: profitableSales.reduce((max, event) => Math.max(max, Number(event?.payload?.pnl || 0)), 0),
+    market_news_count: Number(eventCounts.market_news || 0),
+    completed_news_chain_count: completedChains.size,
+    event_counts: eventCounts,
+  };
+}
 function gameSnapshot() {
   const platformMeta = window.BFSJ_PLATFORM?.runMeta?.() || {};
   return {
+    experiment_key: game.experimentKey || game.experimentConfig?.experimentId || platformMeta.experiment_key || "control",
     score: game.score,
     cash: game.cash,
     bank: game.bank,
@@ -2589,6 +3019,7 @@ function gameSnapshot() {
     inventory: game.inv,
     logs: game.logs.slice(-80),
     event_summary: summarizeEvents(game.eventLog || []),
+    playtest_metrics: buildPlaytestMetrics(),
     events: game.eventLog?.slice(-EVENT_LOG_LIMIT) || [],
     platform: platformMeta,
     ended_at: new Date().toISOString(),
@@ -3377,6 +3808,29 @@ function affordableCapacityByCash(cash = game.cash, currentCap = game.coat) {
   }
   return { target: walk, gain: walk - currentCap, cost: spent };
 }
+function recommendedCapacityExpansion() {
+  const remainingDays = Math.max(0, Number(game.timeLeft) || 0);
+  const recommendedCapacityLimit = 320;
+  if (game.debt > 0 || remainingDays <= 7 || game.coat >= recommendedCapacityLimit) {
+    return { target: game.coat, gain: 0, cost: 0, paybackPressure: 0 };
+  }
+  const feeBefore = warehouseDailyFeeForCapacity(game.coat);
+  const maxRecommendedGain = Math.min(
+    recommendedCapacityLimit - game.coat,
+    game.cash >= 500000 ? 50 : game.cash >= 150000 ? 30 : 20,
+  );
+  const pressureBudget = Math.max(0, Math.floor(game.cash * 0.5));
+  let recommended = null;
+  for (let gain = CAPACITY_STEP; gain <= maxRecommendedGain; gain += CAPACITY_STEP) {
+    const plan = buildCapacityPlan(game.coat, game.coat + gain);
+    if (plan.target > MAX_CAPACITY || plan.cost > game.cash) break;
+    const addedDailyFee = Math.max(0, warehouseDailyFeeForCapacity(plan.target) - feeBefore);
+    const paybackPressure = plan.cost + addedDailyFee * remainingDays;
+    if (paybackPressure > pressureBudget) break;
+    recommended = { target: plan.target, gain: plan.gain, cost: plan.cost, paybackPressure };
+  }
+  return recommended || { target: game.coat, gain: 0, cost: 0, paybackPressure: 0 };
+}
 function renderCapacityPlan(expandValue) {
   const input = q("capacityTargetInput");
   const summary = q("capacitySummaryText");
@@ -3426,8 +3880,8 @@ function openCapacityModal() {
     return;
   }
   modal.classList.remove("hidden");
-  const affordable = affordableCapacityByCash();
-  const defaultGain = affordable.gain > 0 ? affordable.gain : CAPACITY_STEP;
+  const recommended = recommendedCapacityExpansion();
+  const defaultGain = recommended.gain > 0 ? recommended.gain : CAPACITY_STEP;
   input.min = String(CAPACITY_STEP);
   input.max = String(MAX_CAPACITY - game.coat);
   input.step = String(CAPACITY_STEP);
@@ -3890,6 +4344,7 @@ async function signOut() {
 }
 async function initCloud() {
   if (!cloudConfigured()) {
+    await window.BFSJ_PLATFORM?.init?.(null);
     updateAccountUi();
     return;
   }
@@ -4237,9 +4692,13 @@ function safeCampaignUrl(value) {
     return "";
   }
 }
-function openCampaignModal(campaign) {
+function campaignDisclosure(campaign) {
+  return String(campaign?.disclosure_label || campaign?.payload?.disclosure_label || "合作内容").trim().slice(0, 24) || "合作内容";
+}
+function openCampaignModal(campaign, context = {}) {
   if (!campaign) return;
-  activeCampaign = campaign;
+  activeCampaign = { ...campaign, __context: { ...context } };
+  if (q("campaignDisclosureLabel")) q("campaignDisclosureLabel").textContent = campaignDisclosure(campaign);
   q("campaignTitle").textContent = campaign.title || "本地合作信息";
   q("campaignBody").textContent = campaign.body || "";
   const action = q("campaignActionBtn");
@@ -4249,23 +4708,38 @@ function openCampaignModal(campaign) {
   action.dataset.url = actionUrl;
   q("campaignModal")?.classList.remove("hidden");
 }
+function showCampaignSlot(campaign, placement, context = {}) {
+  const slot = q("productSponsorSlot");
+  if (!slot) return;
+  slot.textContent = `${campaignDisclosure(campaign)} · ${campaign.title || "本地合作信息"}`;
+  slot.dataset.placement = placement;
+  slot.closest(".mobile-trade-info")?.classList.add("has-sponsor");
+  slot.onclick = () => {
+    void window.BFSJ_PLATFORM?.recordCampaignEvent?.(campaign, "click", { placement, action: "open_detail", ...context });
+    openCampaignModal(campaign, { placement, ...context });
+  };
+}
+function clearCampaignSlot() {
+  const slot = q("productSponsorSlot");
+  if (!slot) return;
+  slot.textContent = "";
+  slot.dataset.placement = "";
+  slot.closest(".mobile-trade-info")?.classList.remove("has-sponsor");
+  slot.onclick = null;
+}
 async function deliverCampaign(placement, context = {}) {
   const api = window.BFSJ_PLATFORM;
   const campaign = api?.pickCampaign?.(placement, context);
   if (!campaign) {
-    if (placement === "product") q("productSponsorSlot").textContent = "";
+    if (placement === "product" || placement === "location") clearCampaignSlot();
     return null;
   }
   await api.recordCampaignEvent(campaign, "eligible", { placement, ...context });
   await api.recordCampaignEvent(campaign, "impression", { placement, ...context });
-  if (placement === "product") {
-    const slot = q("productSponsorSlot");
-    if (slot) {
-      slot.textContent = `合作 · ${campaign.title}`;
-      slot.onclick = () => openCampaignModal(campaign);
-    }
+  if (placement === "product" || placement === "location") {
+    showCampaignSlot(campaign, placement, context);
   } else {
-    openCampaignModal(campaign);
+    openCampaignModal(campaign, { placement, ...context });
   }
   return campaign;
 }
@@ -4273,6 +4747,10 @@ function maybeDeliverProductCampaign(goodsId) {
   if (goodsId == null || String(goodsId) === String(lastProductCampaignGoodsId)) return;
   lastProductCampaignGoodsId = goodsId;
   void deliverCampaign("product", { goods_id: goodsId });
+}
+function maybeDeliverLocationCampaign(locationId) {
+  if (locationId == null) return;
+  void deliverCampaign("location", { location_id: locationId });
 }
 function showStartModal() {
   const modal = q("startModal");
@@ -4286,6 +4764,79 @@ function closeStartModal() {
   const modal = q("startModal");
   if (!modal) return;
   modal.classList.add("hidden");
+}
+function playtestFeedbackEnabled() {
+  const platform = window.BFSJ_PLATFORM?.runtime;
+  const experimentEnabled = platform?.experiment?.config?.collectFeedback === true;
+  const cityEnabled = platform?.city?.config?.playtest_feedback_enabled === true;
+  const localQa = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    && new URLSearchParams(window.location.search).get("qa_feedback") === "1";
+  return experimentEnabled || cityEnabled || localQa;
+}
+function feedbackRatingRow(name, label) {
+  const choices = [1, 2, 3, 4, 5].map((value) => `
+    <label class="feedback-score">
+      <input type="radio" name="${name}" value="${value}" required />
+      <span>${value}</span>
+    </label>
+  `).join("");
+  return `<div class="feedback-rating-row"><strong>${label}</strong><div class="feedback-score-scale">${choices}</div></div>`;
+}
+function playtestFeedbackMarkup() {
+  if (!playtestFeedbackEnabled() || endFeedbackSubmittedRunId === runId) return "";
+  return `
+<details id="endFeedbackCard" class="end-feedback-card">
+  <summary>留下 30 秒试玩反馈</summary>
+  <form id="endFeedbackForm" class="end-feedback-form">
+    <div class="feedback-scale-caption"><span>1 低</span><span>5 高</span></div>
+    ${feedbackRatingRow("surprise", "惊喜")}
+    ${feedbackRatingRow("satisfaction", "满足")}
+    ${feedbackRatingRow("agency", "我做主")}
+    ${feedbackRatingRow("fairness", "公平")}
+    ${feedbackRatingRow("replay_intent", "想再来")}
+    ${feedbackRatingRow("share_intent", "想分享")}
+    <label class="feedback-text-field">最记得的瞬间
+      <textarea name="memorable_moment" maxlength="500" rows="2" placeholder="一条新闻、一次翻盘或一个离谱瞬间"></textarea>
+    </label>
+    <label class="feedback-quit-field">第一次想退出是第几天
+      <input name="quit_day" type="number" min="0" max="45" inputmode="numeric" placeholder="没有就留空" />
+    </label>
+    <button id="endFeedbackSubmitBtn" type="submit">提交反馈</button>
+    <p id="endFeedbackStatus" class="feedback-status" aria-live="polite"></p>
+  </form>
+</details>`;
+}
+function wirePlaytestFeedbackForm() {
+  const form = q("endFeedbackForm");
+  if (!form) return;
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = q("endFeedbackSubmitBtn");
+    const status = q("endFeedbackStatus");
+    if (button) button.disabled = true;
+    if (status) status.textContent = "提交中...";
+    const values = new FormData(form);
+    const numeric = (name) => Number(values.get(name) || 0);
+    const result = await window.BFSJ_PLATFORM?.submitPlaytestFeedback?.({
+      score: game.score,
+      days_used: game.daysUsed,
+      surprise: numeric("surprise"),
+      satisfaction: numeric("satisfaction"),
+      agency: numeric("agency"),
+      fairness: numeric("fairness"),
+      replay_intent: numeric("replay_intent"),
+      share_intent: numeric("share_intent"),
+      quit_day: String(values.get("quit_day") || ""),
+      memorable_moment: String(values.get("memorable_moment") || "").trim(),
+    });
+    endFeedbackSubmittedRunId = runId;
+    if (status) status.textContent = result?.ok ? "已收到，谢谢。" : "已保存在本机，联网后自动提交。";
+    form.querySelectorAll("input, textarea").forEach((element) => { element.disabled = true; });
+    if (button) {
+      button.disabled = true;
+      button.textContent = result?.ok ? "已提交" : "已保存";
+    }
+  });
 }
 function showEndModal() {
   const modal = q("endModal");
@@ -4373,6 +4924,7 @@ ${cityExpansionCardHtml(game.score)}
   <span>下一局起手计划</span>
   <ol>${openingPlan.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>
 </div>
+${playtestFeedbackMarkup()}
 <div class="end-share-card">
   <span>微信战报</span>
   <p>${escapeHtml(shareText)}</p>
@@ -4397,6 +4949,7 @@ ${cityExpansionCardHtml(game.score)}
   <p>${bestLabel}</p>
 </div>
   `.trim();
+  wirePlaytestFeedbackForm();
   modal.classList.remove("hidden");
 }
 function closeEndModal() {
@@ -4511,6 +5064,7 @@ function startNewGameFlow(options = {}) {
   savedRunId = null;
   saveFailedRunId = null;
   runUploadConsent = null;
+  endFeedbackSubmittedRunId = null;
   guestRunClaimToken = null;
   runPublished = false;
   pendingNewsCampaignContext = null;
@@ -4518,9 +5072,11 @@ function startNewGameFlow(options = {}) {
   lastRecordedEndStatsRunId = null;
   runStartedAtMs = Date.now();
   runEndedElapsedSeconds = null;
+  runPrimaryActionCount = 0;
   lastCelebratedTradeKey = null;
   lastTradeFeedbackKey = null;
   lastPrimaryBuyDay = null;
+  lastExpansionPromptDay = null;
   endPromptRunId = null;
   profitStreak = 0;
   maxProfitStreak = 0;
@@ -4987,7 +5543,14 @@ function executePrimaryOpportunity() {
     return;
   }
   if (expansionOpportunity()) {
-    openCapacityModal();
+    lastExpansionPromptDay = game.daysUsed;
+    const recommended = recommendedCapacityExpansion();
+    const result = game.rentHouseTo(recommended.target);
+    if (result?.ok) {
+      showSaveBanner(`已扩仓 +${recommended.gain}，当前 ${game.coat} 仓。`, 2200);
+      softTap();
+      render();
+    }
     return;
   }
   const loc = suggestedTravelLocation();
@@ -5091,19 +5654,18 @@ q("rumorBtn").addEventListener("click", () => { game.buyRumor(); render(); });
 q("newGameBtnTop").addEventListener("click", () => { startNewGameFlow(); });
 q("eventOkBtn").addEventListener("click", () => { showNextModal(); });
 q("campaignCloseBtn")?.addEventListener("click", () => {
-  if (activeCampaign) void window.BFSJ_PLATFORM?.recordCampaignEvent?.(activeCampaign, "dismiss", {});
+  if (activeCampaign) void window.BFSJ_PLATFORM?.recordCampaignEvent?.(activeCampaign, "dismiss", activeCampaign.__context || {});
   activeCampaign = null;
   q("campaignModal")?.classList.add("hidden");
 });
 q("campaignActionBtn")?.addEventListener("click", () => {
   const url = safeCampaignUrl(q("campaignActionBtn")?.dataset.url);
   if (!activeCampaign || !url) return;
-  void window.BFSJ_PLATFORM?.recordCampaignEvent?.(activeCampaign, "click", { action_url: url });
+  void window.BFSJ_PLATFORM?.recordCampaignEvent?.(activeCampaign, "click", { ...(activeCampaign.__context || {}), action: "outbound", action_url: url });
   window.open(url, "_blank", "noopener,noreferrer");
 });
 q("startConfirmBtn").addEventListener("click", () => {
   closeStartModal();
-  void deliverCampaign("news", { day: game.daysUsed });
 });
 q("startGoogleBtn").addEventListener("click", () => {
   closeStartModal();
@@ -5182,7 +5744,7 @@ document.addEventListener("click", (ev) => {
   if (target instanceof Node && !card.contains(target) && !btn.contains(target)) closeMobileMenu();
 });
 q("capacityTargetInput").addEventListener("input", () => { renderCapacityPlan(q("capacityTargetInput").value); });
-q("capacityCancelBtn").addEventListener("click", () => { closeCapacityModal(); });
+q("capacityCancelBtn").addEventListener("click", () => { closeCapacityModal(); render(); });
 q("capacityConfirmBtn").addEventListener("click", () => {
   const expandGain = Math.max(CAPACITY_STEP, nval("capacityTargetInput", CAPACITY_STEP));
   const target = normalizeCapacityTarget(game.coat + expandGain, game.coat);

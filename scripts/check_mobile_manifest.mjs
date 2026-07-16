@@ -61,11 +61,16 @@ for (const file of [path.join(PRODUCTION_ROOT, "sw.js")]) {
   if (!raw.includes("self.addEventListener(\"fetch\"")) problems.push("fetch handler missing");
   if (!raw.includes("network-first")) problems.push("cache revision should mark network-first strategy");
   if (raw.includes("return cached || fresh")) problems.push("static assets must be network-first to avoid stale mobile builds");
-  const requiredAssets = ["./index.html", "./styles.css", "./layout-v2.css", "./main.js", "./platform.js", "./config.js", "./manifest.webmanifest", "./app-icon.svg", "./app-icon-180.png", "./app-icon-192.png", "./app-icon-512.png"];
+  const requiredAssets = ["./index.html", "./fonts/misans.css", "./styles.css", "./layout-v2.css", "./main.js", "./platform.js", "./config.js", "./manifest.webmanifest", "./app-icon.svg", "./app-icon-180.png", "./app-icon-192.png", "./app-icon-512.png"];
   for (const asset of requiredAssets) {
     if (!raw.includes(asset)) problems.push(`${asset} missing from app shell`);
   }
   if (problems.length) throw new Error(`${file}: ${problems.join("; ")}`);
+}
+
+const fontCss = fs.readFileSync(path.join(PRODUCTION_ROOT, "fonts", "misans.css"), "utf8");
+if (!fontCss.includes("font-family:MiSans") || !fontCss.includes("format('woff2')")) {
+  throw new Error("MiSans WOFF2 subset is missing or invalid");
 }
 
 console.log("Mobile manifest check passed");

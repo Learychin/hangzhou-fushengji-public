@@ -49,6 +49,36 @@
 
       <section class="panel">
         <div class="panel-head">
+          <h2>玩法实验</h2>
+          <span id="experimentsHint">仅后台可见，不向玩家展示模式名</span>
+        </div>
+        <div class="table-wrap">
+          <table id="experimentsTable">
+            <thead>
+              <tr>
+                <th>状态</th><th>内部方案</th><th>假设</th><th>权重</th><th>真实对局</th><th>完成 / 再来</th><th>手感反馈</th><th>配置</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>试玩反馈片段</h2>
+          <span id="feedbackHint">最近 100 条</span>
+        </div>
+        <div class="table-wrap">
+          <table id="feedbackTable">
+            <thead><tr><th>时间</th><th>方案</th><th>分数</th><th>六项评分</th><th>想退出</th><th>最记得的瞬间</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
           <h2>推广活动</h2>
           <div><span id="campaignsHint"></span> <button id="campaignCreateBtn" type="button">新增活动</button></div>
         </div>
@@ -56,7 +86,7 @@
           <table id="campaignsTable">
             <thead>
               <tr>
-                <th>状态</th><th>城市</th><th>类型</th><th>标题</th><th>投放时间</th><th>权重 / 频次</th>
+                <th>状态</th><th>城市</th><th>类型</th><th>位置 / 定向</th><th>标题</th><th>投放时间</th><th>权重 / 频次</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -164,13 +194,35 @@
       </form>
     </div>
 
+    <div id="experimentEditor" class="admin-modal hidden" role="dialog" aria-modal="true" aria-labelledby="experimentEditorTitle">
+      <form id="experimentEditorForm" class="admin-editor">
+        <div class="panel-head"><h2 id="experimentEditorTitle">玩法实验</h2><button id="experimentEditorCancel" type="button">关闭</button></div>
+        <div class="editor-grid">
+          <label>实验键<input id="experimentKeyInput" required pattern="[a-z0-9][a-z0-9_-]{1,47}" /></label>
+          <label>城市键<input id="experimentCityInput" value="hangzhou" required /></label>
+          <label>内部名称<input id="experimentNameInput" required /></label>
+          <label>状态<select id="experimentStatusInput"><option value="draft">草稿</option><option value="active">测试中</option><option value="paused">暂停</option><option value="archived">归档</option></select></label>
+          <label>分流权重<input id="experimentWeightInput" type="number" min="1" max="10000" value="100" /></label>
+          <label>配置版本<input id="experimentVersionInput" value="gameplay-experiments-v1" required /></label>
+          <label class="check-label"><input id="experimentFeedbackInput" type="checkbox" />收集局后反馈</label>
+          <label class="editor-wide">测试假设<textarea id="experimentHypothesisInput" rows="3"></textarea></label>
+          <label class="editor-wide">玩法 JSON 配置<textarea id="experimentConfigInput" rows="12">{}</textarea></label>
+        </div>
+        <div class="editor-actions"><button type="submit">保存实验</button></div>
+      </form>
+    </div>
+
     <div id="campaignEditor" class="admin-modal hidden" role="dialog" aria-modal="true" aria-labelledby="campaignEditorTitle">
       <form id="campaignEditorForm" class="admin-editor">
         <div class="panel-head"><h2 id="campaignEditorTitle">推广活动</h2><button id="campaignEditorCancel" type="button">关闭</button></div>
         <input id="campaignIdInput" type="hidden" />
         <div class="editor-grid">
           <label>城市键<input id="campaignCityInput" value="hangzhou" /></label>
-          <label>类型<select id="campaignTypeInput"><option value="sponsor_news">赞助新闻</option><option value="sponsor_product">赞助商品</option><option value="coupon">优惠券</option><option value="event">本地活动</option></select></label>
+          <label>类型<select id="campaignTypeInput"><option value="sponsor_news">赞助新闻</option><option value="sponsor_product">赞助商品</option><option value="sponsor_location">赞助地点</option><option value="settlement_offer">结算合作</option><option value="coupon">优惠券</option><option value="event">本地活动</option></select></label>
+          <label>投放位置<select id="campaignPlacementInput"><option value="news">新闻后</option><option value="product">商品操作栏</option><option value="location">到达地点后</option><option value="settlement">结算页</option></select></label>
+          <label>定向对象<select id="campaignTargetTypeInput"><option value="">不限</option><option value="goods">指定商品</option><option value="location">指定地点</option></select></label>
+          <label>对象编号<input id="campaignTargetKeyInput" placeholder="如商品 0 或地点 2" /></label>
+          <label>披露文字<input id="campaignDisclosureInput" value="合作内容" maxlength="24" /></label>
           <label>状态<select id="campaignStatusInput"><option value="draft">草稿</option><option value="active">投放中</option><option value="paused">暂停</option><option value="ended">结束</option></select></label>
           <label>权重<input id="campaignWeightInput" type="number" min="1" max="10000" value="100" /></label>
           <label>每日频次<input id="campaignCapInput" type="number" min="1" max="50" value="1" /></label>
@@ -180,7 +232,8 @@
           <label class="editor-wide">标题<input id="campaignTitleInput" required /></label>
           <label class="editor-wide">正文<textarea id="campaignBodyInput" rows="4" required></textarea></label>
           <label class="editor-wide">行动链接<input id="campaignActionUrlInput" type="url" placeholder="https://..." /></label>
-          <label class="editor-wide">投放 JSON<textarea id="campaignPayloadInput" rows="5">{"placement":"news"}</textarea></label>
+          <label class="editor-wide">补充设置 JSON<textarea id="campaignPayloadInput" rows="5">{}</textarea></label>
+          <label class="editor-wide">经济效果 JSON（预留，当前前台不执行）<textarea id="campaignEconomyInput" rows="3">{}</textarea></label>
         </div>
         <div class="editor-actions"><button type="submit">保存活动</button></div>
       </form>

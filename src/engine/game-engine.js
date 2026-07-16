@@ -40,12 +40,109 @@ const CAPACITY_STEP = 10;
 const MARKET_BUY_DISPLAY_LIMIT = 9;
 const LOCAL_RESALE_RATE = 0.9;
 const MAX_NEWS_PRICE_MULTIPLIER = 12;
+const DEFAULT_EXPERIMENT_CONFIG = Object.freeze({
+  experimentId: "control",
+  priceSpanScale: 1,
+  lowGoodsPriceSpanScale: 1,
+  highValuePriceSpanScale: 1,
+  locationSpreadScale: 1,
+  lowGoodsLocationSpreadScale: 1,
+  highValueLocationSpreadScale: 1,
+  locationRareChance: 9,
+  newsSpawnRate: MARKET_NEWS_SPAWN_RATE,
+  newsMinGapDays: MARKET_NEWS_MIN_GAP_DAYS,
+  newsForceAfterDays: MARKET_NEWS_FORCE_AFTER_DAYS,
+  newsEffectScale: 1,
+  smallGoodsStartDay: 3,
+  smallGoodsSwingRate: 14,
+  smallGoodsUpRate: 64,
+  smallGoodsUpMin: 45,
+  smallGoodsUpMax: 115,
+  smallGoodsDownMin: 25,
+  smallGoodsDownMax: 60,
+  jackpotStartDay: 24,
+  jackpotChanceFloor: 4,
+  jackpotChanceCap: 18,
+  jackpotRegularMin: 180,
+  jackpotRegularMax: 420,
+  jackpotSuperRate: 12,
+  jackpotSuperMin: 700,
+  jackpotSuperMax: 1200,
+  jackpotQuotaDistribution: [25, 55, 17, 3],
+  debtGraceRate: 0.03,
+  debtLateRate: 0.055,
+});
 const WAREHOUSE_FEE_TIERS = [
   { uptoExtra: 30, unitFee: 8 },
   { uptoExtra: 80, unitFee: 30 },
   { uptoExtra: 180, unitFee: 120 },
   { uptoExtra: Infinity, unitFee: 280 },
 ];
+
+function clampNumber(value, fallback, min, max) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
+}
+
+function clampInteger(value, fallback, min, max) {
+  return Math.round(clampNumber(value, fallback, min, max));
+}
+
+function normalizeQuotaDistribution(value) {
+  const source = Array.isArray(value) && value.length === 4
+    ? value
+    : DEFAULT_EXPERIMENT_CONFIG.jackpotQuotaDistribution;
+  const weights = source.map((item) => Math.max(0, Number(item) || 0));
+  const total = weights.reduce((sum, item) => sum + item, 0);
+  if (total <= 0) return [0.25, 0.55, 0.17, 0.03];
+  return weights.map((item) => item / total);
+}
+
+function normalizeExperimentConfig(config = {}) {
+  const source = config && typeof config === "object" && !Array.isArray(config) ? config : {};
+  const defaults = DEFAULT_EXPERIMENT_CONFIG;
+  const normalized = {
+    experimentId: String(source.experimentId || source.experiment_id || defaults.experimentId)
+      .replace(/[^a-z0-9_-]/gi, "")
+      .slice(0, 48) || defaults.experimentId,
+    priceSpanScale: clampNumber(source.priceSpanScale, defaults.priceSpanScale, 0.45, 2.2),
+    lowGoodsPriceSpanScale: clampNumber(source.lowGoodsPriceSpanScale, defaults.lowGoodsPriceSpanScale, 0.4, 2.5),
+    highValuePriceSpanScale: clampNumber(source.highValuePriceSpanScale, defaults.highValuePriceSpanScale, 0.35, 2.2),
+    locationSpreadScale: clampNumber(source.locationSpreadScale, defaults.locationSpreadScale, 0.35, 2.5),
+    lowGoodsLocationSpreadScale: clampNumber(source.lowGoodsLocationSpreadScale, defaults.lowGoodsLocationSpreadScale, 0.35, 2.5),
+    highValueLocationSpreadScale: clampNumber(source.highValueLocationSpreadScale, defaults.highValueLocationSpreadScale, 0.35, 2.2),
+    locationRareChance: clampInteger(source.locationRareChance, defaults.locationRareChance, 0, 40),
+    newsSpawnRate: clampInteger(source.newsSpawnRate, defaults.newsSpawnRate, 0, 100),
+    newsMinGapDays: clampInteger(source.newsMinGapDays, defaults.newsMinGapDays, 1, 10),
+    newsForceAfterDays: clampInteger(source.newsForceAfterDays, defaults.newsForceAfterDays, 1, 15),
+    newsEffectScale: clampNumber(source.newsEffectScale, defaults.newsEffectScale, 0.25, 3),
+    smallGoodsStartDay: clampInteger(source.smallGoodsStartDay, defaults.smallGoodsStartDay, 1, TOTAL_DAYS),
+    smallGoodsSwingRate: clampInteger(source.smallGoodsSwingRate, defaults.smallGoodsSwingRate, 0, 100),
+    smallGoodsUpRate: clampInteger(source.smallGoodsUpRate, defaults.smallGoodsUpRate, 0, 100),
+    smallGoodsUpMin: clampInteger(source.smallGoodsUpMin, defaults.smallGoodsUpMin, 0, 1000),
+    smallGoodsUpMax: clampInteger(source.smallGoodsUpMax, defaults.smallGoodsUpMax, 0, 1200),
+    smallGoodsDownMin: clampInteger(source.smallGoodsDownMin, defaults.smallGoodsDownMin, 0, 95),
+    smallGoodsDownMax: clampInteger(source.smallGoodsDownMax, defaults.smallGoodsDownMax, 0, 95),
+    jackpotStartDay: clampInteger(source.jackpotStartDay, defaults.jackpotStartDay, 1, TOTAL_DAYS),
+    jackpotChanceFloor: clampInteger(source.jackpotChanceFloor, defaults.jackpotChanceFloor, 0, 100),
+    jackpotChanceCap: clampInteger(source.jackpotChanceCap, defaults.jackpotChanceCap, 0, 100),
+    jackpotRegularMin: clampInteger(source.jackpotRegularMin, defaults.jackpotRegularMin, 0, 1200),
+    jackpotRegularMax: clampInteger(source.jackpotRegularMax, defaults.jackpotRegularMax, 0, 1200),
+    jackpotSuperRate: clampInteger(source.jackpotSuperRate, defaults.jackpotSuperRate, 0, 100),
+    jackpotSuperMin: clampInteger(source.jackpotSuperMin, defaults.jackpotSuperMin, 0, 1200),
+    jackpotSuperMax: clampInteger(source.jackpotSuperMax, defaults.jackpotSuperMax, 0, 1200),
+    jackpotQuotaDistribution: normalizeQuotaDistribution(source.jackpotQuotaDistribution),
+    debtGraceRate: clampNumber(source.debtGraceRate, defaults.debtGraceRate, 0, 0.2),
+    debtLateRate: clampNumber(source.debtLateRate, defaults.debtLateRate, 0, 0.25),
+  };
+  normalized.newsForceAfterDays = Math.max(normalized.newsMinGapDays, normalized.newsForceAfterDays);
+  normalized.smallGoodsUpMax = Math.max(normalized.smallGoodsUpMin, normalized.smallGoodsUpMax);
+  normalized.smallGoodsDownMax = Math.max(normalized.smallGoodsDownMin, normalized.smallGoodsDownMax);
+  normalized.jackpotChanceCap = Math.max(normalized.jackpotChanceFloor, normalized.jackpotChanceCap);
+  normalized.jackpotRegularMax = Math.max(normalized.jackpotRegularMin, normalized.jackpotRegularMax);
+  normalized.jackpotSuperMax = Math.max(normalized.jackpotSuperMin, normalized.jackpotSuperMax);
+  return normalized;
+}
 
 function localResalePrice(buyPrice) {
   return Math.max(1, Math.floor((Number(buyPrice) || 0) * LOCAL_RESALE_RATE));
@@ -168,7 +265,9 @@ function getCareerStageState(score, achievedIndex = 0) {
 }
 
 class GameEngine {
-  constructor() {
+  constructor(options = {}) {
+    this.experimentConfig = normalizeExperimentConfig(options.experimentConfig || options.experiment || options);
+    this.experimentKey = this.experimentConfig.experimentId;
     this.goods = [
       { id: 0, name: "便利店特调饮料", kind: "physical", weight: 1, base: 6, span: 54 },
       { id: 1, name: "景区文创冰箱贴", kind: "physical", weight: 1, base: 16, span: 180 },
@@ -298,12 +397,15 @@ class GameEngine {
     this.coffeeCost = 30;
     this.rumorBuff = null;
     this.activeNews = [];
+    this.pendingNewsStages = [];
+    this.recentNewsTemplateIds = [];
     this.lastNewsSpawnDay = 0;
     this.lastNewsPopups = [];
     this.lastNewsPopupStrength = 0;
     this.todayNews = null;
     this.newsPool = [
       {
+        id: "city-tourism",
         title: "【杭州文旅热度攀升】",
         desc: "假期客流叠加夜游活动，文旅消费情绪走强。",
         durationMin: 2,
@@ -314,6 +416,7 @@ class GameEngine {
         ],
       },
       {
+        id: "compute-demand",
         title: "【算力与硬件需求升温】",
         desc: "多家科技公司集中扩容，硬件与算力报价抬升。",
         durationMin: 2,
@@ -324,6 +427,7 @@ class GameEngine {
         ],
       },
       {
+        id: "cross-border-delay",
         title: "【跨境履约受阻】",
         desc: "物流与清关节奏放缓，跨境链路出现折价抛盘。",
         durationMin: 2,
@@ -334,6 +438,7 @@ class GameEngine {
         ],
       },
       {
+        id: "capital-rotation",
         title: "【资本风格切换】",
         desc: "资金从稳健品撤离，向高波动品集中。",
         durationMin: 2,
@@ -344,6 +449,7 @@ class GameEngine {
         ],
       },
       {
+        id: "consumer-inspection",
         title: "【消费监管趋严】",
         desc: "平台抽检和营销规范升级，部分热门品类承压。",
         durationMin: 2,
@@ -353,6 +459,178 @@ class GameEngine {
           { goodsIds: [3, 4], minPct: 8, maxPct: 20, tag: "稀缺" },
         ],
       },
+      {
+        id: "lake-queue-rumor",
+        chainId: "lake-queue",
+        stage: "signal",
+        weight: 90,
+        nextId: "lake-queue-report",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【湖滨队伍拐了三个弯】",
+        desc: "路人看见队伍就跟着排，前七位都说不清在买什么。",
+        durationMin: 2,
+        durationMax: 2,
+        effects: [
+          { goodsIds: [0, 1], minPct: 8, maxPct: 22, tag: "围观" },
+        ],
+      },
+      {
+        id: "lake-queue-report",
+        chainId: "lake-queue",
+        stage: "payoff",
+        entry: false,
+        title: "【排到第八位，终于问明白了】",
+        desc: "一家小店发售会反光的联名冰箱贴；队伍知道答案后，排得更长了。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [1], minPct: 70, maxPct: 120, tag: "爆单" },
+          { goodsIds: [11], minPct: -18, maxPct: -6, tag: "失宠" },
+        ],
+      },
+      {
+        id: "ai-companion-launch",
+        chainId: "ai-companion-service",
+        stage: "signal",
+        weight: 85,
+        nextId: "ai-companion-complaint",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【桌面搭子突然走红】",
+        desc: "新品号称能陪聊、记事、控灯，首批预约一路排到下周。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [18], minPct: 24, maxPct: 42, tag: "新品" },
+          { goodsIds: [6], minPct: 8, maxPct: 18, tag: "算力" },
+        ],
+      },
+      {
+        id: "ai-companion-complaint",
+        chainId: "ai-companion-service",
+        stage: "reversal",
+        entry: false,
+        nextId: "ai-companion-update",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【说好陪聊，到家只劝充电】",
+        desc: "消费者发现它最熟练的一句话是“电量不足”；负责人正在开会，且会议很有续航。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [18], minPct: -58, maxPct: -36, tag: "投诉" },
+          { goodsIds: [2], minPct: 12, maxPct: 28, tag: "刚需" },
+        ],
+      },
+      {
+        id: "ai-companion-update",
+        chainId: "ai-companion-service",
+        stage: "resolution",
+        entry: false,
+        title: "【记者到场，会议准时结束】",
+        desc: "厂商连夜推送固件并延长退换期，桌面搭子终于学会了第二句话。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [18], minPct: 48, maxPct: 82, tag: "修复" },
+          { goodsIds: [2], minPct: -16, maxPct: -6, tag: "降温" },
+        ],
+      },
+      {
+        id: "coupon-poster",
+        chainId: "coupon-rules",
+        stage: "signal",
+        weight: 75,
+        nextId: "coupon-checkout",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【消费券海报写得很大】",
+        desc: "“不限使用张数”吸引顾客下单，妆造和文旅套餐先热了一轮。",
+        durationMin: 2,
+        durationMax: 2,
+        effects: [
+          { goodsIds: [5, 9], minPct: 16, maxPct: 34, tag: "促销" },
+        ],
+      },
+      {
+        id: "coupon-checkout",
+        chainId: "coupon-rules",
+        stage: "reversal",
+        entry: false,
+        nextId: "coupon-mediation",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【到了收银台，只能用一张】",
+        desc: "海报、客服和结算系统第一次正式见面，三方对活动规则各有理解。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [5, 9], minPct: -48, maxPct: -28, tag: "纠纷" },
+          { goodsIds: [11], minPct: 8, maxPct: 20, tag: "替代" },
+        ],
+      },
+      {
+        id: "coupon-mediation",
+        chainId: "coupon-rules",
+        stage: "resolution",
+        entry: false,
+        title: "【规则终于同步成功】",
+        desc: "调解后商家补兑并重写页面，消费者拿到了券，文案也拿到了标点。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [5, 9], minPct: 18, maxPct: 32, tag: "回暖" },
+        ],
+      },
+      {
+        id: "repair-search-results",
+        chainId: "official-repair-search",
+        stage: "signal",
+        weight: 70,
+        nextId: "repair-two-hours",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【搜索一开，全是官方售后】",
+        desc: "页面从官方专修排到官方直营网点，唯一没统一的是客服电话。",
+        durationMin: 2,
+        durationMax: 2,
+        effects: [
+          { goodsIds: [10], minPct: 18, maxPct: 34, tag: "维修热" },
+          { goodsIds: [2], minPct: 8, maxPct: 18, tag: "备用" },
+        ],
+      },
+      {
+        id: "repair-two-hours",
+        chainId: "official-repair-search",
+        stage: "reversal",
+        entry: false,
+        nextId: "repair-real-official",
+        nextDelayMin: 2,
+        nextDelayMax: 3,
+        title: "【主板换好两小时，又很有主见】",
+        desc: "维修点建议再换一块；机器建议大家先冷静，虽然它自己不制冷。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [10], minPct: -52, maxPct: -34, tag: "返修" },
+          { goodsIds: [2], minPct: 16, maxPct: 30, tag: "刚需" },
+        ],
+      },
+      {
+        id: "repair-real-official",
+        chainId: "official-repair-search",
+        stage: "resolution",
+        entry: false,
+        title: "【真正官方终于接通】",
+        desc: "客服先确认维修点不是他们的，再确认搜索结果也不是他们排的。",
+        durationMin: 2,
+        durationMax: 3,
+        effects: [
+          { goodsIds: [10], minPct: 24, maxPct: 44, tag: "正品" },
+          { goodsIds: [2], minPct: -14, maxPct: -6, tag: "降温" },
+        ],
+      },
     ];
     this.newGame();
   }
@@ -360,6 +638,9 @@ class GameEngine {
   configureCityContent(config = {}) {
     if (!config || typeof config !== "object" || Array.isArray(config)) return false;
     let changed = false;
+
+    const experiment = config.gameplay_experiment || config.experiment_config;
+    if (experiment && this.configureExperiment(experiment)) changed = true;
 
     const productRows = Array.isArray(config.product_overrides)
       ? config.product_overrides
@@ -415,7 +696,7 @@ class GameEngine {
 
     if (Array.isArray(config.news_pool) && config.news_pool.length) {
       const goodsIds = new Set(this.goods.map((goods) => goods.id));
-      const newsPool = config.news_pool.map((row) => {
+      const newsPool = config.news_pool.map((row, index) => {
         const effects = (Array.isArray(row?.effects) ? row.effects : []).map((effect) => {
           const ids = (Array.isArray(effect?.goodsIds) ? effect.goodsIds : [])
             .map(Number)
@@ -433,6 +714,14 @@ class GameEngine {
         const title = String(row?.title || "").trim().slice(0, 80);
         if (!title || !effects.length) return null;
         return {
+          id: String(row?.id || `news-${index + 1}`).replace(/[^a-z0-9_-]/gi, "").slice(0, 64),
+          chainId: String(row?.chainId || row?.chain_id || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 64),
+          stage: String(row?.stage || "single").replace(/[^a-z0-9_-]/gi, "").slice(0, 24),
+          entry: row?.entry !== false,
+          weight: Math.max(1, Math.min(1000, Math.floor(Number(row?.weight) || 100))),
+          nextId: String(row?.nextId || row?.next_id || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 64),
+          nextDelayMin: Math.max(1, Math.min(8, Math.floor(Number(row?.nextDelayMin || row?.next_delay_min) || 2))),
+          nextDelayMax: Math.max(1, Math.min(10, Math.floor(Number(row?.nextDelayMax || row?.next_delay_max) || 3))),
           title,
           desc: String(row?.desc || "").trim().slice(0, 180),
           durationMin: Math.max(1, Math.min(6, Math.floor(Number(row.durationMin) || 2))),
@@ -447,6 +736,14 @@ class GameEngine {
     }
 
     this.cityContentKey = String(config.content_schema || config.scene_key || "city-content-v1").slice(0, 80);
+    return changed;
+  }
+
+  configureExperiment(config = {}) {
+    const next = normalizeExperimentConfig(config);
+    const changed = JSON.stringify(next) !== JSON.stringify(this.experimentConfig);
+    this.experimentConfig = next;
+    this.experimentKey = next.experimentId;
     return changed;
   }
 
@@ -471,12 +768,17 @@ class GameEngine {
     this.inv = [];
     this.logs = [`新游戏开始：欢迎来到杭州。${TOTAL_DAYS} 天交易局。 版本代号 ${GAME_VERSION_CODE}`];
     this.eventLog = [];
-    this.recordEvent("system", this.logs[0], { version: GAME_VERSION_CODE });
+    this.recordEvent("system", this.logs[0], {
+      version: GAME_VERSION_CODE,
+      experiment_id: this.experimentConfig.experimentId,
+    });
     this.lastMarketPopups = [];
     this.rumor = null;
     this.lastRumorLoc = 0;
     this.rumorBuff = null;
     this.activeNews = [];
+    this.pendingNewsStages = [];
+    this.recentNewsTemplateIds = [];
     this.todayNews = {
       title: "【市场开盘】",
       desc: "先跑动起来，第一轮行情会在换地方后生成。",
@@ -502,11 +804,14 @@ class GameEngine {
   get cityLabels() { return this.locations; }
 
   rollMagicEventQuota() {
-    const r = this.rnd(100);
-    if (r < 25) return 0;
-    if (r < 80) return 1;
-    if (r < 97) return 2;
-    return 3;
+    const weights = this.experimentConfig.jackpotQuotaDistribution;
+    const r = Math.random();
+    let cursor = 0;
+    for (let quota = 0; quota < weights.length; quota += 1) {
+      cursor += weights[quota];
+      if (r < cursor) return quota;
+    }
+    return weights.length - 1;
   }
 
   addLog(msg, type = "log", payload = {}) {
@@ -546,6 +851,7 @@ class GameEngine {
       daysUsed: this.daysUsed,
       totalDays: TOTAL_DAYS,
       currentLoc: this.currentLoc,
+      experimentId: this.experimentConfig.experimentId,
       starterBufferUsed: this.starterBufferUsed || 0,
       careerStageIndex: this.careerStageIndex || 0,
     };
@@ -571,7 +877,12 @@ class GameEngine {
     if (r < 15) ratio = 0.12 + this.rnd(23) / 100; // 0.12 ~ 0.34
     else if (r < 25) ratio = 0.66 + this.rnd(27) / 100; // 0.66 ~ 0.92
     else ratio = 0.35 + this.rnd(31) / 100; // 0.35 ~ 0.65
-    return Math.max(1, Math.floor(base + span * ratio));
+    const tierScale = base <= 2500
+      ? this.experimentConfig.lowGoodsPriceSpanScale
+      : (base >= 7000 ? this.experimentConfig.highValuePriceSpanScale : 1);
+    const scaledRatio = Math.max(0.04, Math.min(1.2,
+      0.5 + (ratio - 0.5) * this.experimentConfig.priceSpanScale * tierScale));
+    return Math.max(1, Math.floor(base + span * scaledRatio));
   }
 
   makeDrugPrices(leaveout) {
@@ -669,10 +980,14 @@ class GameEngine {
       for (const g of this.goods) {
         // 常规地区差价收窄；大波动交给新闻和离谱事件，玩家更容易理解原因。
         let k = 0.86 + this.rnd(31) / 100; // 0.86 ~ 1.16
-        if (this.rnd(100) < 9) {
+        if (this.rnd(100) < this.experimentConfig.locationRareChance) {
           k = 0.62 + this.rnd(77) / 100; // 0.62 ~ 1.38
         }
-        row[g.id] = k;
+        const tierScale = g.base <= 2500
+          ? this.experimentConfig.lowGoodsLocationSpreadScale
+          : (g.base >= 7000 ? this.experimentConfig.highValueLocationSpreadScale : 1);
+        row[g.id] = Math.max(0.2,
+          1 + (k - 1) * this.experimentConfig.locationSpreadScale * tierScale);
       }
       this.locMultipliers.push(row);
     }
@@ -723,19 +1038,25 @@ class GameEngine {
 
   prepareNewsForDay() {
     const currentDay = this.nextDayNumber;
+    const config = this.experimentConfig;
     this.activeNews = (this.activeNews || []).filter((n) => n.expiresOnDay >= currentDay);
     this.lastNewsPopups = [];
     this.lastNewsPopupStrength = 0;
 
     const daysSinceNews = currentDay - Math.max(0, Number(this.lastNewsSpawnDay || 0));
-    const gapReady = this.lastNewsSpawnDay === 0 || daysSinceNews >= MARKET_NEWS_MIN_GAP_DAYS;
-    const forceNews = this.lastNewsSpawnDay > 0 && daysSinceNews >= MARKET_NEWS_FORCE_AFTER_DAYS;
-    if (gapReady && (forceNews || this.rnd(100) < MARKET_NEWS_SPAWN_RATE)) {
-      const tpl = this.newsPool[this.rnd(this.newsPool.length)];
+    const gapReady = this.lastNewsSpawnDay === 0 || daysSinceNews >= config.newsMinGapDays;
+    const forceNews = this.lastNewsSpawnDay > 0 && daysSinceNews >= config.newsForceAfterDays;
+    const pendingIndex = (this.pendingNewsStages || []).findIndex((item) => item.dueDay <= currentDay);
+    const pending = pendingIndex >= 0 ? this.pendingNewsStages[pendingIndex] : null;
+    if (gapReady && (pending || forceNews || this.rnd(100) < config.newsSpawnRate)) {
+      const tpl = pending?.template || this.pickNewsTemplate();
+      if (!tpl) return;
+      if (pendingIndex >= 0) this.pendingNewsStages.splice(pendingIndex, 1);
       const duration = tpl.durationMin + this.rnd(tpl.durationMax - tpl.durationMin + 1);
       const impacts = tpl.effects.map((effect) => {
         const goodsId = effect.goodsIds[this.rnd(effect.goodsIds.length)];
-        const pct = effect.minPct + this.rnd(effect.maxPct - effect.minPct + 1);
+        const rawPct = effect.minPct + this.rnd(effect.maxPct - effect.minPct + 1);
+        const pct = Math.max(-95, Math.min(1200, Math.round(rawPct * config.newsEffectScale)));
         return {
           goodsId,
           pct,
@@ -746,11 +1067,16 @@ class GameEngine {
         id: `${currentDay}-${Date.now()}-${this.rnd(9999)}`,
         title: tpl.title,
         desc: tpl.desc,
+        templateId: tpl.id || "",
+        chainId: tpl.chainId || "",
+        stage: tpl.stage || "single",
         day: currentDay,
         expiresOnDay: currentDay + duration - 1,
         impacts,
       };
       this.activeNews.push(news);
+      this.rememberNewsTemplate(tpl);
+      this.scheduleNewsFollowUp(tpl, currentDay);
       this.queueNewsPopup(news);
       const impactText = impacts
         .map((x) => `${this.goods[x.goodsId]?.name || "未知商品"}${x.pct > 0 ? "+" : ""}${x.pct}%`)
@@ -759,6 +1085,9 @@ class GameEngine {
         day: currentDay,
         expires_on_day: news.expiresOnDay,
         impacts,
+        template_id: news.templateId,
+        chain_id: news.chainId,
+        chain_stage: news.stage,
       });
     }
     this.maybeCreateSmallGoodsSwingNews(currentDay);
@@ -766,12 +1095,46 @@ class GameEngine {
     this.refreshTodayNews(currentDay);
   }
 
+  pickNewsTemplate() {
+    const entries = (this.newsPool || []).filter((template) => template.entry !== false);
+    if (!entries.length) return null;
+    const recent = new Set((this.recentNewsTemplateIds || []).slice(-3));
+    const fresh = entries.filter((template) => !recent.has(template.id));
+    const candidates = fresh.length ? fresh : entries;
+    const totalWeight = candidates.reduce((sum, template) => sum + Math.max(1, Number(template.weight) || 100), 0);
+    let cursor = this.rnd(Math.max(1, Math.floor(totalWeight)));
+    for (const template of candidates) {
+      cursor -= Math.max(1, Number(template.weight) || 100);
+      if (cursor < 0) return template;
+    }
+    return candidates[candidates.length - 1];
+  }
+
+  rememberNewsTemplate(template) {
+    if (!template?.id) return;
+    this.recentNewsTemplateIds = [...(this.recentNewsTemplateIds || []), template.id].slice(-8);
+  }
+
+  scheduleNewsFollowUp(template, currentDay) {
+    if (!template?.nextId) return false;
+    const next = (this.newsPool || []).find((candidate) => candidate.id === template.nextId);
+    if (!next) return false;
+    const minDelay = Math.max(1, Number(template.nextDelayMin) || 2);
+    const maxDelay = Math.max(minDelay, Number(template.nextDelayMax) || minDelay);
+    const dueDay = Math.min(TOTAL_DAYS, currentDay + minDelay + this.rnd(maxDelay - minDelay + 1));
+    this.pendingNewsStages = (this.pendingNewsStages || [])
+      .filter((item) => item.template?.id !== next.id);
+    this.pendingNewsStages.push({ dueDay, template: next });
+    this.pendingNewsStages.sort((left, right) => left.dueDay - right.dueDay);
+    return true;
+  }
+
   queueNewsPopup(news) {
     if (!news) return;
     const newsDay = Number(news.day || this.nextDayNumber);
     const sameDay = newsDay === Number(this.lastNewsSpawnDay || 0);
     if (!sameDay && this.lastNewsSpawnDay > 0
-      && newsDay - this.lastNewsSpawnDay < MARKET_NEWS_MIN_GAP_DAYS) return;
+      && newsDay - this.lastNewsSpawnDay < this.experimentConfig.newsMinGapDays) return;
     const impacts = (news.impacts || []).map((impact) => {
       const goods = this.goods.find((item) => item.id === impact.goodsId);
       return `${goods?.name || "未知商品"} ${impact.pct > 0 ? "+" : ""}${impact.pct}%`;
@@ -786,12 +1149,15 @@ class GameEngine {
   }
 
   maybeCreateSmallGoodsSwingNews(currentDay) {
-    if (currentDay < 3 || this.rnd(100) >= 14) return false;
+    const config = this.experimentConfig;
+    if (currentDay < config.smallGoodsStartDay || this.rnd(100) >= config.smallGoodsSwingRate) return false;
     const candidates = this.goods.filter((g) => g.base <= 2500);
     if (!candidates.length) return false;
     const goods = candidates[this.rnd(candidates.length)];
-    const isUp = this.rnd(100) < 64;
-    const pct = isUp ? 45 + this.rnd(71) : -(25 + this.rnd(36));
+    const isUp = this.rnd(100) < config.smallGoodsUpRate;
+    const pct = isUp
+      ? config.smallGoodsUpMin + this.rnd(config.smallGoodsUpMax - config.smallGoodsUpMin + 1)
+      : -(config.smallGoodsDownMin + this.rnd(config.smallGoodsDownMax - config.smallGoodsDownMin + 1));
     const duration = 2 + this.rnd(2);
     const title = isUp ? "【小商品爆单】" : "【小商品塌价】";
     const desc = isUp
@@ -817,7 +1183,8 @@ class GameEngine {
   }
 
   maybeCreateHeldJackpotNews(currentDay) {
-    if (currentDay < 24) return false;
+    const config = this.experimentConfig;
+    if (currentDay < config.jackpotStartDay) return false;
     const candidates = (this.inv || []).filter((item) => {
       const goods = this.goods.find((g) => g.id === item.id);
       return goods && goods.base <= 12000;
@@ -826,13 +1193,16 @@ class GameEngine {
     if ((this.magicEventTriggered || 0) >= (this.magicEventQuota || 0)) return false;
     const remainingQuota = (this.magicEventQuota || 0) - (this.magicEventTriggered || 0);
     const remainingDays = Math.max(1, TOTAL_DAYS - currentDay + 1);
-    const chance = Math.min(18, Math.max(4, Math.ceil((remainingQuota / remainingDays) * 100)));
+    const chance = Math.min(config.jackpotChanceCap,
+      Math.max(config.jackpotChanceFloor, Math.ceil((remainingQuota / remainingDays) * 100)));
     if (this.rnd(100) >= chance) return false;
     const held = candidates[this.rnd(candidates.length)];
     const goods = this.goods.find((g) => g.id === held.id);
     if (!goods) return false;
-    const superSpike = currentDay >= 36 && this.rnd(100) < 12;
-    const pct = superSpike ? 700 + this.rnd(501) : 180 + this.rnd(241);
+    const superSpike = currentDay >= 36 && this.rnd(100) < config.jackpotSuperRate;
+    const pct = superSpike
+      ? config.jackpotSuperMin + this.rnd(config.jackpotSuperMax - config.jackpotSuperMin + 1)
+      : config.jackpotRegularMin + this.rnd(config.jackpotRegularMax - config.jackpotRegularMin + 1);
     const duration = 1 + this.rnd(2);
     const news = {
       id: `jackpot-${currentDay}-${Date.now()}-${this.rnd(9999)}`,
@@ -931,7 +1301,9 @@ class GameEngine {
 
   handleCashDebt() {
     const graceDays = Math.max(3, Math.ceil(TOTAL_DAYS * 0.16));
-    const rate = this.daysUsed < graceDays ? 0.03 : 0.055;
+    const rate = this.daysUsed < graceDays
+      ? this.experimentConfig.debtGraceRate
+      : this.experimentConfig.debtLateRate;
     this.debt = this.debt + Math.floor(this.debt * rate);
     const dailyBankRate = 0.01;
     this.bank = this.bank + Math.floor(this.bank * dailyBankRate);
@@ -1603,6 +1975,8 @@ const HZFSJEngine = {
   MARKET_BUY_DISPLAY_LIMIT,
   LOCAL_RESALE_RATE,
   MAX_NEWS_PRICE_MULTIPLIER,
+  DEFAULT_EXPERIMENT_CONFIG,
+  normalizeExperimentConfig,
   localResalePrice,
   marketDepthForGoods,
   marketSaleQuote,

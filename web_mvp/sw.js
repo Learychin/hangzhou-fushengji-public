@@ -1,8 +1,9 @@
 const CACHE_PREFIX = "bfsj-shell";
-const CACHE_NAME = `${CACHE_PREFIX}-network-first-20260715-platform-5`;
+const CACHE_NAME = `${CACHE_PREFIX}-network-first-20260716-friend-test-1`;
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./fonts/misans.css",
   "./styles.css",
   "./layout-v2.css",
   "./main.js",
