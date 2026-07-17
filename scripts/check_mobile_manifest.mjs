@@ -61,11 +61,23 @@ for (const file of [path.join(PRODUCTION_ROOT, "sw.js")]) {
   if (!raw.includes("self.addEventListener(\"fetch\"")) problems.push("fetch handler missing");
   if (!raw.includes("network-first")) problems.push("cache revision should mark network-first strategy");
   if (raw.includes("return cached || fresh")) problems.push("static assets must be network-first to avoid stale mobile builds");
+  if (raw.includes('cache.put("./index.html", copy)')) problems.push("non-game navigation must not overwrite the cached game shell");
   const requiredAssets = ["./index.html", "./fonts/misans.css", "./styles.css", "./layout-v2.css", "./main.js", "./platform.js", "./config.js", "./manifest.webmanifest", "./app-icon.svg", "./app-icon-180.png", "./app-icon-192.png", "./app-icon-512.png"];
   for (const asset of requiredAssets) {
     if (!raw.includes(asset)) problems.push(`${asset} missing from app shell`);
   }
   if (problems.length) throw new Error(`${file}: ${problems.join("; ")}`);
+}
+
+const adminHtml = fs.readFileSync(path.join(PRODUCTION_ROOT, "admin.html"), "utf8");
+if (adminHtml.includes("cdnjs.cloudflare.com") || !adminHtml.includes("./vendor/jszip-3.10.1.min.js")) {
+  throw new Error("Admin export dependency must be self-hosted");
+}
+if (!adminHtml.includes('rel="icon" href="./app-icon.svg"')) {
+  throw new Error("Admin favicon is missing");
+}
+if (!fs.existsSync(path.join(PRODUCTION_ROOT, "vendor", "JSZIP-LICENSE.txt"))) {
+  throw new Error("JSZip license notice is missing");
 }
 
 const fontCss = fs.readFileSync(path.join(PRODUCTION_ROOT, "fonts", "misans.css"), "utf8");

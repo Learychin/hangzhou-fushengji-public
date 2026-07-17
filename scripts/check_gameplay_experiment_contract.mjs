@@ -6,11 +6,13 @@ const catalogPath = path.join(ROOT, "src", "config", "gameplay-experiments.json"
 const webCatalogPath = path.join(ROOT, "web_mvp", "assets", "gameplay-experiments.json");
 const migrationPath = path.join(ROOT, "supabase", "migrations", "20260715160000_gameplay_experiments_and_native_ads.sql");
 const activationMigrationPath = path.join(ROOT, "supabase", "migrations", "20260716150000_activate_friend_blind_test.sql");
+const dashboardMigrationPath = path.join(ROOT, "supabase", "migrations", "20260716170000_friend_test_control_dashboard.sql");
 
 const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
 const webCatalog = JSON.parse(fs.readFileSync(webCatalogPath, "utf8"));
 const migration = fs.readFileSync(migrationPath, "utf8");
 const activationMigration = fs.readFileSync(activationMigrationPath, "utf8");
+const dashboardMigration = fs.readFileSync(dashboardMigrationPath, "utf8");
 const expectedIds = [
   "control_current",
   "clue_balanced",
@@ -45,6 +47,9 @@ for (const id of expectedIds) {
 }
 if (!activationMigration.includes("allocation_weight = 100")) fail("Activation migration must use equal allocation");
 if (!activationMigration.includes("set status = 'draft'")) fail("Campaigns must remain draft during the first blind test");
+if (!dashboardMigration.includes("admin_set_friend_test_state")) fail("Friend-test start and pause control is missing");
+if (!dashboardMigration.includes("story_share_rate")) fail("Friend-test story/share decision metric is missing");
+if (!dashboardMigration.includes("negative_asset_rate")) fail("Friend-test negative-asset guardrail is missing");
 
 const migrationConfigs = new Map();
 for (const match of migration.matchAll(/'(\{"experimentId":"([a-z0-9_-]+)"[^']*\})'::jsonb/g)) {

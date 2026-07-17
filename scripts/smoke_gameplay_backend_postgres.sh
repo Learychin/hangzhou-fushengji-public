@@ -282,19 +282,55 @@ begin
     raise exception 'feedback aggregate failed: groups %, feedback %',
       v_feedback_groups, v_feedback;
   end if;
+  if exists (
+    select 1 from gameplay_results
+    where completed_player_count <> 1
+       or score_median <= 0 or score_p90 <= 0 or negative_asset_rate is null
+  ) then
+    raise exception 'decision-ready gameplay metrics are incomplete';
+  end if;
+  if exists (
+    select 1 from feedback_results
+    where median_surprise is null or median_satisfaction is null or story_share_rate <> 100
+  ) then
+    raise exception 'decision-ready feedback metrics are incomplete';
+  end if;
 end;
 $$;
 
 select experiment_key, run_count, avg_score, completion_rate,
        avg_duration_seconds, avg_primary_actions, day10_break_even_rate,
-       profitable_sale_rate
+       profitable_sale_rate, negative_asset_rate, score_median, score_p90
 from gameplay_results order by experiment_key;
 select experiment_key, feedback_count, avg_surprise, avg_satisfaction,
-       avg_replay_intent, avg_share_intent
+       avg_replay_intent, avg_share_intent, median_surprise,
+       median_satisfaction, story_share_rate
 from feedback_results order by experiment_key;
 
 reset role;
 reset request.jwt.claim.sub;
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+set role authenticated;
+select public.admin_set_friend_test_state('paused');
+do $$
+begin
+  if exists (select 1 from public.admin_gameplay_experiments() where status = 'active') then
+    raise exception 'friend-test pause control did not pause every variant';
+  end if;
+end;
+$$;
+select public.admin_set_friend_test_state('active');
+do $$
+begin
+  if (select count(*) from public.admin_gameplay_experiments() where status = 'active' and allocation_weight = 100) <> 5 then
+    raise exception 'friend-test resume control did not restore five equal variants';
+  end if;
+end;
+$$;
+reset role;
+reset request.jwt.claim.sub;
+
 set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000002';
 set role authenticated;
 
@@ -312,6 +348,12 @@ begin
   begin
     perform public.admin_set_gameplay_experiment_status('control_current', 'paused', 100);
     raise exception 'regular account unexpectedly changed an experiment';
+  exception when raise_exception then
+    if sqlerrm <> 'admin_required' then raise; end if;
+  end;
+  begin
+    perform public.admin_set_friend_test_state('paused');
+    raise exception 'regular account unexpectedly controlled the friend test';
   exception when raise_exception then
     if sqlerrm <> 'admin_required' then raise; end if;
   end;

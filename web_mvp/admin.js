@@ -1,6 +1,13 @@
 "use strict";
 
 const state = { client: null };
+const FRIEND_TEST_KEYS = new Set([
+  "control_current",
+  "clue_balanced",
+  "small_goods_comeback",
+  "high_risk_black_horse",
+  "news_story_storm",
+]);
 let adminVerified = false;
 let selectedRunId = null;
 let currentRunRows = [];
@@ -129,6 +136,68 @@ function campaignStatusLabel(status) {
 }
 function experimentStatusLabel(status) {
   return ({ draft: "草稿", active: "测试中", paused: "已暂停", archived: "已归档" })[status] || status || "-";
+}
+function finiteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+function gateChip(label, passed, hasSample) {
+  const state = hasSample ? (passed ? "pass" : "fail") : "";
+  const prefix = hasSample ? (passed ? "通过" : "观察") : "待测";
+  return `<span class="gate-chip ${state}">${prefix} · ${esc(label)}</span>`;
+}
+function experimentDecision(row, result = {}, feedback = {}) {
+  const players = finiteNumber(result.player_count);
+  const completedPlayers = finiteNumber(result.completed_player_count);
+  const feedbackCount = finiteNumber(feedback.feedback_count);
+  const sampleReady = completedPlayers >= 5 && feedbackCount >= 5;
+  const gates = [
+    ["完成≥70%", finiteNumber(result.completion_rate) >= 70, players > 0],
+    ["再来≥50%", finiteNumber(result.replay_player_rate) >= 50, players > 0],
+    ["惊喜中位≥4", finiteNumber(feedback.median_surprise) >= 4, feedbackCount > 0],
+    ["满足中位≥4", finiteNumber(feedback.median_satisfaction) >= 4, feedbackCount > 0],
+    ["故事/分享≥40%", finiteNumber(feedback.story_share_rate) >= 40, feedbackCount > 0],
+    ["10天回正20–45%", finiteNumber(result.day10_break_even_rate) >= 20 && finiteNumber(result.day10_break_even_rate) <= 45, finiteNumber(result.metrics_run_count) > 0],
+    ["负资产10–35%", finiteNumber(result.negative_asset_rate) >= 10 && finiteNumber(result.negative_asset_rate) <= 35, players > 0],
+  ];
+  const allPassed = sampleReady && gates.every(([, passed]) => passed);
+  const status = allPassed ? "可入围" : sampleReady ? "需复盘" : players > 0 ? "采样中" : "待采样";
+  const statusClass = allPassed ? "ready" : sampleReady ? "review" : "";
+  return { row, result, feedback, players, completedPlayers, feedbackCount, sampleReady, gates, status, statusClass };
+}
+function renderFriendTestConsole(rows, resultRows = [], feedbackRows = []) {
+  const resultMap = new Map((resultRows || []).map((row) => [row.experiment_key, row]));
+  const feedbackMap = new Map((feedbackRows || []).map((row) => [row.experiment_key, row]));
+  const decisions = (rows || []).filter((row) => FRIEND_TEST_KEYS.has(row.experiment_key)).map((row) => experimentDecision(
+    row,
+    resultMap.get(row.experiment_key) || {},
+    feedbackMap.get(row.experiment_key) || {},
+  ));
+  const activeCount = decisions.filter((item) => item.row.status === "active").length;
+  const totalPlayers = decisions.reduce((sum, item) => sum + item.players, 0);
+  const totalCompletedPlayers = decisions.reduce((sum, item) => sum + item.completedPlayers, 0);
+  const totalRuns = decisions.reduce((sum, item) => sum + finiteNumber(item.result.run_count), 0);
+  const totalFeedback = decisions.reduce((sum, item) => sum + item.feedbackCount, 0);
+  const filledVariants = decisions.filter((item) => item.sampleReady).length;
+  const stateLabel = activeCount === 5 ? "五档测试中" : activeCount === 0 ? "已全部暂停" : `${activeCount} 档测试中`;
+  q("friendTestHint").textContent = `${stateLabel}｜目标：五档各 5 位完整玩家并提交反馈`;
+  q("friendTestSummary").innerHTML = [
+    ["测试状态", stateLabel],
+    ["完成玩家", `${totalCompletedPlayers} / 25`],
+    ["已收满档位", `${filledVariants} / 5`],
+    ["完整对局", totalRuns],
+    ["进入 / 反馈", `${totalPlayers} / ${totalFeedback}`],
+  ].map(([label, value]) => `<article><span>${esc(label)}</span><strong>${esc(value)}</strong></article>`).join("");
+  q("friendTestDecisions").innerHTML = decisions.map((item) => {
+    const progress = Math.min(100, (item.completedPlayers / 5) * 100);
+    return `<article class="decision-card">
+      <h3><span>${esc(item.row.internal_name)}</span><span class="decision-status ${item.statusClass}">${esc(item.status)}</span></h3>
+      <div class="sample-track"><span style="width:${progress}%"></span></div>
+      <div class="decision-meta">${esc(item.completedPlayers)} / 5 完整｜${esc(item.players)} 人进入｜${esc(item.feedbackCount)} 份反馈</div>
+      <div class="decision-meta">中位分 ${esc(cny(item.result.score_median || 0))}｜P90 ${esc(cny(item.result.score_p90 || 0))}</div>
+      <div class="decision-gates">${item.gates.map(([label, passed, hasSample]) => gateChip(label, passed, hasSample)).join("")}</div>
+    </article>`;
+  }).join("");
 }
 function campaignTypeLabel(type) {
   return ({ coupon: "优惠券", event: "本地活动", sponsor_news: "赞助新闻", sponsor_product: "赞助商品", sponsor_location: "赞助地点", settlement_offer: "结算合作" })[type] || type || "-";
@@ -355,6 +424,7 @@ function renderExperiments(rows, resultRows = [], feedbackRows = []) {
   currentExperimentRows = rows || [];
   currentExperimentResults = new Map((resultRows || []).map((row) => [row.experiment_key, row]));
   currentFeedbackResults = new Map((feedbackRows || []).map((row) => [row.experiment_key, row]));
+  renderFriendTestConsole(currentExperimentRows, resultRows, feedbackRows);
   q("experimentsHint").textContent = `${currentExperimentRows.length} 档内部方案，模式名不向玩家展示`;
   q("experimentsTable").querySelector("tbody").innerHTML = currentExperimentRows.length ? currentExperimentRows.map((row) => {
     const result = currentExperimentResults.get(row.experiment_key) || {};
@@ -367,7 +437,7 @@ function renderExperiments(rows, resultRows = [], feedbackRows = []) {
       <td>${esc(row.allocation_weight)}</td>
       <td><strong>${esc(result.run_count || 0)} 局</strong><div class="cell-sub">${esc(result.player_count || 0)} 人｜均分 ${esc(cny(result.avg_score || 0))}</div></td>
       <td><strong>${esc(result.completion_rate || 0)}% / ${esc(result.replay_player_rate || 0)}%</strong>${Number(result.metrics_run_count || 0) > 0 ? `<div class="cell-sub">均时 ${esc(shortDuration(result.avg_duration_seconds))}｜主操作 ${esc(result.avg_primary_actions || 0)}｜10天回正 ${esc(result.day10_break_even_rate || 0)}%｜有盈利 ${esc(result.profitable_sale_rate || 0)}%</div>` : ""}</td>
-      <td><strong>${esc(feedback.feedback_count || 0)} 条</strong><div class="cell-sub">惊喜 ${esc(feedback.avg_surprise || 0)}｜满足 ${esc(feedback.avg_satisfaction || 0)}｜再来 ${esc(feedback.avg_replay_intent || 0)}</div></td>
+      <td><strong>${esc(feedback.feedback_count || 0)} 条</strong><div class="cell-sub">惊喜 ${esc(feedback.avg_surprise || 0)}｜满足 ${esc(feedback.avg_satisfaction || 0)}｜再来 ${esc(feedback.avg_replay_intent || 0)}｜故事/分享 ${esc(feedback.story_share_rate || 0)}%</div></td>
       <td><code class="config-code">${esc(row.config_version)}</code> <button class="run-action-btn experiment-edit-btn" data-experiment-key="${esc(row.experiment_key)}">编辑</button></td>
     </tr>`;
   }).join("") : `<tr><td colspan="8" class="empty-cell">还没有玩法实验。</td></tr>`;
@@ -376,6 +446,22 @@ function renderExperiments(rows, resultRows = [], feedbackRows = []) {
       currentExperimentRows.find((row) => row.experiment_key === button.dataset.experimentKey),
     ));
   });
+}
+async function setFriendTestState(stateValue) {
+  const actionLabel = stateValue === "active" ? "恢复五档等权盲测" : "暂停全部盲测";
+  if (!window.confirm(`确定${actionLabel}吗？这会立即影响之后新打开的对局。`)) return;
+  q("friendTestResumeBtn").disabled = true;
+  q("friendTestPauseBtn").disabled = true;
+  try {
+    await callRpc("admin_set_friend_test_state", { p_state: stateValue });
+    q("adminStatus").textContent = `${actionLabel}已完成。`;
+    await refresh();
+  } catch (error) {
+    q("adminStatus").textContent = `${actionLabel}失败：${error.message || error}`;
+  } finally {
+    q("friendTestResumeBtn").disabled = false;
+    q("friendTestPauseBtn").disabled = false;
+  }
 }
 function renderPlaytestFeedback(rows) {
   const items = rows || [];
@@ -547,12 +633,16 @@ async function refreshServiceRuntime() {
     })(),
     (async () => {
       try {
-        await checkJson("https://registry.npmjs.org/@supabase/supabase-js/latest");
-        const statusUrl = cfg.supabaseUrl ? `${cfg.supabaseUrl}/rest/v1/` : null;
+        const statusUrl = cfg.supabaseUrl ? `${cfg.supabaseUrl}/rest/v1/rpc/resolve_gameplay_experiment` : null;
         if (statusUrl) {
           const response = await fetch(statusUrl, {
-            method: "GET",
-            headers: { apikey: cfg.supabaseAnonKey || "" },
+            method: "POST",
+            headers: {
+              apikey: cfg.supabaseAnonKey || "",
+              authorization: `Bearer ${cfg.supabaseAnonKey || ""}`,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({ p_city_key: "hangzhou", p_session_id: "admin-health-check" }),
             cache: "no-store",
           });
           runtimeStatus.supabase.ok = response.status < 500;
@@ -833,6 +923,8 @@ async function init() {
 }
 
 q("refreshBtn").addEventListener("click", () => { refresh(); });
+q("friendTestResumeBtn").addEventListener("click", () => { setFriendTestState("active"); });
+q("friendTestPauseBtn").addEventListener("click", () => { setFriendTestState("paused"); });
 q("adminRetryBtn").addEventListener("click", () => { init(); });
 q("runSelectAllBtn").addEventListener("click", () => { setSelectionForCurrentPage(true); });
 q("runClearSelectionBtn").addEventListener("click", () => { clearRunSelection(); });

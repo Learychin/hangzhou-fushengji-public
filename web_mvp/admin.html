@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>杭州浮生记 Admin</title>
+    <link rel="icon" href="./app-icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./fonts/misans.css" />
     <link rel="stylesheet" href="./admin.css" />
   </head>
   <body>
@@ -29,6 +31,21 @@
       </section>
 
       <section id="overview" class="metric-grid"></section>
+
+      <section class="panel friend-test-panel">
+        <div class="panel-head">
+          <div class="panel-head-main">
+            <h2>朋友盲测控制台</h2>
+            <span id="friendTestHint">目标：五档各 5 位完整玩家</span>
+          </div>
+          <div class="friend-test-actions">
+            <button id="friendTestResumeBtn" type="button">恢复五档等权</button>
+            <button id="friendTestPauseBtn" class="danger-button" type="button">暂停全部盲测</button>
+          </div>
+        </div>
+        <div id="friendTestSummary" class="friend-test-summary"></div>
+        <div id="friendTestDecisions" class="friend-test-decisions"></div>
+      </section>
 
       <section class="panel">
         <div class="panel-head">
@@ -241,7 +258,7 @@
 
 
     <script src="./config.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="./vendor/jszip-3.10.1.min.js"></script>
     <script src="./admin.js"></script>
   </body>
 </html>

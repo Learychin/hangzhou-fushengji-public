@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "bfsj-shell";
-const CACHE_NAME = `${CACHE_PREFIX}-network-first-20260716-friend-test-1`;
+const CACHE_NAME = `${CACHE_PREFIX}-network-first-20260716-friend-test-2`;
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -44,14 +44,20 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
+    const appRootPath = new URL("./", self.location.href).pathname;
+    const isGameShell = url.pathname === appRootPath || url.pathname === `${appRootPath}index.html`;
+    const cacheKey = isGameShell ? "./index.html" : request;
     event.respondWith(
       fetch(request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
+          caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, copy));
           return response;
         })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match("./index.html"))),
+        .catch(() => caches.match(cacheKey).then((cached) => cached || new Response(
+          "当前离线，请恢复网络后重试。",
+          { status: 503, headers: { "Content-Type": "text/plain;charset=UTF-8" } },
+        ))),
     );
     return;
   }
