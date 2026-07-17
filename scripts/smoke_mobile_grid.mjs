@@ -203,6 +203,8 @@ async function runViewport(serverUrl, viewport) {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), "bfsj-grid-"));
   const chrome = spawn(chromePath(), [
     "--headless=new",
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
     "--disable-gpu",
     "--no-first-run",
     "--no-default-browser-check",
